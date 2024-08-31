@@ -243,7 +243,7 @@ class C2f(nn.Module):
         return self.cv2(torch.cat(y, 1))
 
 class C2fOutputs(nn.Module):
-    """Faster Implementation of CSP Bottleneck with 2 convolutions."""
+    """Faster Implementation of CSP Bottleneck with 2 convolutions + outputs."""
 
     def __init__(self, c1, c2, n=1, shortcut=False, g=1, e=0.5):
         """Initializes a CSP bottleneck with 2 convolutions and n Bottleneck blocks for faster processing."""
@@ -260,6 +260,7 @@ class C2fOutputs(nn.Module):
         y = list(self.cv1(x).chunk(2, 1))
         y.extend(m(y[-1]) for m in self.m)
         outputs = self.cv2(torch.cat(y, 1))
+        self.outputs.append(outputs)
 
         return outputs
     

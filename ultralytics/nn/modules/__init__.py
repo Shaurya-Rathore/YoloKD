@@ -36,6 +36,7 @@ from .block import (
     Bottleneck,
     BottleneckCSP,
     C2f,
+    C2fOutputs,
     C2fAttn,
     C2fCIB,
     C3Ghost,
@@ -110,6 +111,7 @@ __all__ = (
     "C2",
     "C3",
     "C2f",
+    "C2fOutputs"
     "C2fAttn",
     "C3x",
     "C3TR",
