@@ -20,6 +20,21 @@ model_state_dict = torch.load('/kaggle/input/yolov8m-pt/yolov8m.pt')
 model.model.load_state_dict(model_state_dict,strict = False)
 model.model.to(device)
 
+from ultralytics.utils.callbacks.wb import callbacks as wb_callbacks
+
+def on_train_batch_end(trainer):
+    # Access the loss dictionary
+    loss_items = trainer.loss_items
+    
+    # Log each loss component
+    wandb.log({
+        "train/box_loss": loss_items[0],
+        "train/cls_loss": loss_items[1],
+        "train/dfl_loss": loss_items[2]
+    }, step=trainer.epoch)
+
+# Assign our custom callback
+wb_callbacks.on_train_batch_end = on_train_batch_end
 # Train the model with the specified configuration and sync to W&B
 Result_Final_model = model.train(
     data='/kaggle/input/waiddataset/WAID-main/WAID-main/WAID/data.yaml',
@@ -29,6 +44,8 @@ Result_Final_model = model.train(
     project='yolov8-LDConv',
     save=True,
 )
+
+
 
 # Finish the W&B run
 wandb.finish()
