@@ -30,6 +30,7 @@ def log_losses(trainer):
         "train/cls_loss": loss_items[1],
         "train/dfl_loss": loss_items[2]
     }, step=trainer.epoch)
+    torch.cuda.empty_cache()
 
 # Register the callback with the YOLO model
 model.add_callback('on_train_batch_end', log_losses)
@@ -43,6 +44,8 @@ Result_Final_model = model.train(
     project='yolov8-LDConv',
     save=True,
 )
+
+torch.cuda.empty_cache()
 
 # Finish the W&B run
 wandb.finish()
