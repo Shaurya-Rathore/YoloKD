@@ -13,7 +13,7 @@ model = YOLO('yolov8-LDconv.yaml')
 
 # Load the pretrained model from the provided path
 # Kaggle typically mounts the dataset under '/kaggle/input/'
-pretrained_model = torch.load('yolov8m.pt')  # Adjust the path if necessary
+pretrained_model = YOLO('/kaggle/input/yolov8m-pt/yolov8m.pt')  # Adjust the path if necessary
 
 # Extract the state_dict (the actual model weights) from the pretrained model
 pretrained_state_dict = pretrained_model['model'].state_dict()
