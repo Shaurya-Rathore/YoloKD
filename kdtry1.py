@@ -3,7 +3,7 @@ from ultralytics import YOLO
 from collections import OrderedDict
 
 # Load the custom model configuration
-model = YOLO('yolov8m.yaml')
+model = YOLO('yolov8-LDconv.yaml')
 # Load the pretrained model
 pretrained_model = torch.load('yolov8m.pt')  
 
