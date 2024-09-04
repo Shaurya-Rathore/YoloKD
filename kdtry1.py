@@ -1,11 +1,19 @@
 import torch
 from ultralytics import YOLO
 from collections import OrderedDict
+import wandb
+
+# Initialize a new W&B run
+wandb.login(key="833b800ff23eb3d26e6c85a8b9e1fc8bbafc9775")
+# Initialize wandb
+wandb.init(project="yolov8-LDConv", config=opt.__dict__)
 
 # Load the custom model configuration
 model = YOLO('yolov8-LDconv.yaml')
-# Load the pretrained model
-pretrained_model = torch.load('yolov8m.pt')  
+
+# Load the pretrained model from the provided path
+# Kaggle typically mounts the dataset under '/kaggle/input/'
+pretrained_model = torch.load('yolov8m.pt')  # Adjust the path if necessary
 
 # Extract the state_dict (the actual model weights) from the pretrained model
 pretrained_state_dict = pretrained_model['model'].state_dict()
@@ -27,7 +35,17 @@ for layer_name in model_state_dict.keys():
 # Load the filtered state_dict into your model
 model.model.load_state_dict(new_state_dict)
 
-# Now the model is loaded with weights only for the layers that match the custom YAML configuration
+# Train the model with the specified configuration and sync to W&B
+Result_Final_model = model.train(
+    data='/kaggle/input/waid-dataset'
+    epochs=3,
+    batch=16,
+    optimizer='auto',
+    project='yolov8-LDConv',
+    save=True,
+)
 
-Result_Final_model = model.train(data= 'C:\\Users\\aditya\\Downloads\\WAID-main\\WAID-main\\WAID\\data.yaml' ,epochs = 100, batch = 16, optimizer = 'auto')
+# Finish the W&B run
+wandb.finish()
+
 
