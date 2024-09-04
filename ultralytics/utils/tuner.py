@@ -143,10 +143,5 @@ def run_ray_tune(
     # Run the hyperparameter search
     tuner.fit()
 
-    # Get the results of the hyperparameter search
-    results = tuner.get_results()
-
-    # Shut down Ray to clean up workers
-    ray.shutdown()
-
-    return results
+    # Return the results of the hyperparameter search
+    return tuner.get_results()

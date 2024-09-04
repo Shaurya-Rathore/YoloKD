@@ -36,6 +36,7 @@ from .block import (
     Bottleneck,
     BottleneckCSP,
     C2f,
+    C2fOutputs,
     C2fAttn,
     C2fCIB,
     C3Ghost,
@@ -53,6 +54,7 @@ from .block import (
     RepVGGDW,
     ResNetLayer,
     SCDown,
+    LDConv,
 )
 from .conv import (
     CBAM,
@@ -110,6 +112,7 @@ __all__ = (
     "C2",
     "C3",
     "C2f",
+    "C2fOutputs"
     "C2fAttn",
     "C3x",
     "C3TR",
@@ -150,4 +153,5 @@ __all__ = (
     "Attention",
     "PSA",
     "SCDown",
+    "LDConv",
 )
