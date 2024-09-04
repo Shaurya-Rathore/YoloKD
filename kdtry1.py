@@ -3,6 +3,8 @@ from ultralytics import YOLO
 from collections import OrderedDict
 import wandb
 
+device = 'cuda' if torch.cuda.is_available() else 'cpu'
+model.to(device)
 # Initialize a new W&B run
 wandb.login(key="833b800ff23eb3d26e6c85a8b9e1fc8bbafc9775")
 # Initialize wandb
