@@ -20,9 +20,9 @@ model_state_dict = torch.load('/kaggle/input/yolov8m-pt/yolov8m.pt')
 model.model.load_state_dict(model_state_dict,strict = False)
 model.model.to(device)
 
-from ultralytics.utils.callbacks.wb import callbacks as wb_callbacks
+from ultralytics.utils.callbacks import on_train_batch_end
 
-def on_train_batch_end(trainer):
+def log_losses(trainer):
     # Access the loss dictionary
     loss_items = trainer.loss_items
     
@@ -33,9 +33,8 @@ def on_train_batch_end(trainer):
         "train/dfl_loss": loss_items[2]
     }, step=trainer.epoch)
 
-# Assign our custom callback
-wb_callbacks.on_train_batch_end = on_train_batch_end
-# Train the model with the specified configuration and sync to W&B
+on_train_batch_end.append(log_losses)# Train the model with the specified configuration and sync to W&B
+
 Result_Final_model = model.train(
     data='/kaggle/input/waiddataset/WAID-main/WAID-main/WAID/data.yaml',
     epochs=3,
