@@ -22,7 +22,7 @@ model.model.to(device)
 
 # Train the model with the specified configuration and sync to W&B
 Result_Final_model = model.train(
-    data='/kaggle/input/waid-dataset/WAID-main/WAID-main/WAID/data.yaml',
+    data='/kaggle/input/waiddataset/WAID-main/WAID-main/WAID/data.yaml',
     epochs=3,
     batch=16,
     optimizer='auto',
