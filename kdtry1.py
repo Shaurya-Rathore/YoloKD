@@ -6,7 +6,7 @@ import wandb
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 # Initialize a new W&B run
-wandb.login()  # Ensure the API key is set via environment or W&B CLI
+wandb.login(key="833b800ff23eb3d26e6c85a8b9e1fc8bbafc9775") 
 wandb.init(project="yolov8-LDConv")
 
 # Load the custom model configuration
