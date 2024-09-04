@@ -37,7 +37,7 @@ model.model.load_state_dict(new_state_dict)
 
 # Train the model with the specified configuration and sync to W&B
 Result_Final_model = model.train(
-    data='/kaggle/input/waid-dataset/data.yaml'
+    data='/kaggle/input/waid-dataset/data.yaml',
     epochs=3,
     batch=16,
     optimizer='auto',
