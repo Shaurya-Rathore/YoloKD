@@ -16,7 +16,7 @@ wandb.init(project="yolov8-LDConv")
 model = YOLO('yolov8-LDconv.yaml')
 
 # Load the pretrained model from the provided path
-model_state_dict = YOLO('yolov8m.pt')  
+model_state_dict = torch.load('/kaggle/input/yolov8m-pt/yolov8m.pt')  
 
 # Load the filtered state_dict into your model
 model.model.load_state_dict(model_state_dict, strict=False)
