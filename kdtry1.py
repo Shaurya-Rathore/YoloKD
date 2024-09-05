@@ -1,9 +1,12 @@
 import torch
 from ultralytics import YOLO
 import wandb
+import os
 
 # Check if CUDA is available and set the device
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
+
+os.environ['CUDA_LAUNCH_BLOCKING'] = "1"
 
 # Initialize a new W&B run
 wandb.login(key="833b800ff23eb3d26e6c85a8b9e1fc8bbafc9775") 
