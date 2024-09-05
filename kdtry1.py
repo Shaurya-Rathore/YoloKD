@@ -48,6 +48,11 @@ Result_Final_model = model.train(
     save=True,
 )
 
+# Save the final model weights
+torch.save(model.model.state_dict(), '/kaggle/working/yolov8m_custom_weights.pt')
+
+!zip -r yolov8m_custom_weights.zip /kaggle/working/yolov8m_custom_weights.pt
+
 torch.cuda.empty_cache()
 
 # Finish the W&B run
