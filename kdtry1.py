@@ -6,7 +6,6 @@ import os
 # Check if CUDA is available and set the device
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-os.environ['CUDA_LAUNCH_BLOCKING'] = "1"
 
 # Initialize a new W&B run
 wandb.login(key="833b800ff23eb3d26e6c85a8b9e1fc8bbafc9775") 
@@ -33,7 +32,7 @@ def log_losses(trainer):
         "train/cls_loss": loss_items[1],
         "train/dfl_loss": loss_items[2]
     }, step=trainer.epoch)
-    torch.cuda.empty_cache()
+    
 
 # Register the callback with the YOLO model
 model.add_callback('on_train_batch_end', log_losses)
@@ -51,7 +50,7 @@ Result_Final_model = model.train(
 # Save the final model weights
 torch.save(model.model.state_dict(), '/kaggle/working/yolov8m_custom_weights.pt')
 
-torch.cuda.empty_cache()
+
 
 # Finish the W&B run
 wandb.finish()
