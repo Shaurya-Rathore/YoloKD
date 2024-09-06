@@ -2,7 +2,7 @@ import torch
 from ultralytics import YOLO
 import wandb
 
-
+cuda = True if torch.cuda.is_available() else False
 # Initialize W&B
 wandb.login(key="833b800ff23eb3d26e6c85a8b9e1fc8bbafc9775") 
 wandb.init(project="yolov8-LDConv")
@@ -13,7 +13,7 @@ model = YOLO('yolov8-LDconv.yaml')
 # Load the pretrained weights
 model_state_dict = torch.load('/kaggle/input/yolov8m-pt/yolov8m.pt')
 model.model.load_state_dict(model_state_dict, strict=False)
-model.model.to('cuda')
+model.model.to(cuda)
 
 # Check for valid labels
 def check_labels(labels, num_classes):
