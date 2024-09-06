@@ -1,10 +1,7 @@
 import torch
-import os
 from ultralytics import YOLO
 import wandb
 
-# Set CUDA_LAUNCH_BLOCKING for better debugging
-os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
 
 # Initialize W&B
 wandb.login(key="833b800ff23eb3d26e6c85a8b9e1fc8bbafc9775") 
