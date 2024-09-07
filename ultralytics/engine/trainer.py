@@ -450,7 +450,7 @@ class BaseTrainer:
                 self.stop |= epoch >= self.epochs  # stop if exceeded epochs
             self.run_callbacks("on_fit_epoch_end")
             gc.collect()
-            torch.cuda.empty_cache()  # clear GPU memory at end of epoch, may help reduce CUDA out of memory errors
+            #torch.cuda.empty_cache()  # clear GPU memory at end of epoch, may help reduce CUDA out of memory errors
 
             # Early Stopping
             if RANK != -1:  # if DDP training
@@ -472,7 +472,7 @@ class BaseTrainer:
                 self.plot_metrics()
             self.run_callbacks("on_train_end")
         gc.collect()
-        torch.cuda.empty_cache()
+        #torch.cuda.empty_cache()
         self.run_callbacks("teardown")
 
     def read_results_csv(self):
