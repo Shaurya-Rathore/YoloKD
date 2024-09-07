@@ -335,6 +335,8 @@ class LDConv(nn.Module):
     def __init__(self, inc, outc, num_param, stride=1, bias=None):
         super(LDConv, self).__init__()
         self.outc = outc
+        self.inc = inc
+        print(outc)
         self.num_param = num_param
         self.stride = stride
         self.conv = nn.Sequential(nn.Conv2d(inc, outc, kernel_size=(num_param, 1), stride=(num_param, 1), bias=bias),nn.BatchNorm2d(outc),nn.SiLU())  # the conv adds the BN and SiLU to compare original Conv in YOLOv5.
@@ -388,7 +390,7 @@ class LDConv(nn.Module):
                    g_lb.unsqueeze(dim=1) * x_q_lb + \
                    g_rt.unsqueeze(dim=1) * x_q_rt
 
-        x_offset = self._reshape_x_offset(x_offset, self.num_param, self.outc)
+        x_offset = self._reshape_x_offset(x_offset, self.num_param, self.inc)
         out = self.conv(x_offset)
 
         return out
@@ -456,16 +458,18 @@ class LDConv(nn.Module):
     
     #  Stacking resampled features in the row direction.
     @staticmethod
-    def _reshape_x_offset(x_offset, num_param, outc):
+    def _reshape_x_offset(x_offset, num_param, inc):
         b, c, h, w, n = x_offset.size()
-        print(b,c,h,w,n)
         # using Conv3d
         x_offset = x_offset.permute(0,1,4,2,3)
-        conv_layer = nn.Conv3d(c, outc, kernel_size =(num_param,1,1),stride=(num_param,1,1),bias= False)
+        conv_layer = nn.Conv3d(c, inc, kernel_size =(num_param,1,1),stride=(num_param,1,1),bias= False)
         x_offset = conv_layer(x_offset)
         # using 1 × 1 Conv
         # x_offset = x_offset.permute(0,1,4,2,3), then, x_offset.view(b,c×num_param,h,w)  finally, Conv2d(c×num_param,c_out, kernel_size =1,stride=1,bias= False)
         # using the column conv as follow， then, Conv2d(inc, outc, kernel_size=(num_param, 1), stride=(num_param, 1), bias=bias)
         
         x_offset = rearrange(x_offset, 'b c h w n -> b c (h n) w')
+        
+        print(x_offset.shape)
+        print(num_param)
         return x_offset
