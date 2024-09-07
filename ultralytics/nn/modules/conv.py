@@ -334,6 +334,7 @@ class Concat(nn.Module):
 class LDConv(nn.Module):
     def __init__(self, inc, outc, num_param, stride=1, bias=None):
         super(LDConv, self).__init__()
+        self.outc = outc
         self.num_param = num_param
         self.stride = stride
         self.conv = nn.Sequential(nn.Conv2d(inc, outc, kernel_size=(num_param, 1), stride=(num_param, 1), bias=bias),nn.BatchNorm2d(outc),nn.SiLU())  # the conv adds the BN and SiLU to compare original Conv in YOLOv5.
@@ -458,7 +459,8 @@ class LDConv(nn.Module):
     def _reshape_x_offset(x_offset, num_param):
         b, c, h, w, n = x_offset.size()
         # using Conv3d
-        # x_offset = x_offset.permute(0,1,4,2,3), then Conv3d(c,c_out, kernel_size =(num_param,1,1),stride=(num_param,1,1),bias= False)
+        x_offset = x_offset.permute(0,1,4,2,3)
+        x_offset = nn.Conv3d(c,c, kernel_size =(num_param,1,1),stride=(num_param,1,1),bias= False)
         # using 1 × 1 Conv
         # x_offset = x_offset.permute(0,1,4,2,3), then, x_offset.view(b,c×num_param,h,w)  finally, Conv2d(c×num_param,c_out, kernel_size =1,stride=1,bias= False)
         # using the column conv as follow， then, Conv2d(inc, outc, kernel_size=(num_param, 1), stride=(num_param, 1), bias=bias)
