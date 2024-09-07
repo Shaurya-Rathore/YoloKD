@@ -54,7 +54,6 @@ from .block import (
     RepVGGDW,
     ResNetLayer,
     SCDown,
-    LDConv,
 )
 from .conv import (
     CBAM,
@@ -69,6 +68,7 @@ from .conv import (
     GhostConv,
     LightConv,
     RepConv,
+    LDConv,
     SpatialAttention,
 )
 from .head import OBB, Classify, Detect, Pose, RTDETRDecoder, Segment, WorldDetect, v10Detect
