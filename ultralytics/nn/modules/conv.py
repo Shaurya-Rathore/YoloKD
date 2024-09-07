@@ -458,6 +458,7 @@ class LDConv(nn.Module):
     @staticmethod
     def _reshape_x_offset(x_offset, num_param, outc):
         b, c, h, w, n = x_offset.size()
+        print(b,c,h,w,n)
         # using Conv3d
         x_offset = x_offset.permute(0,1,4,2,3)
         conv_layer = nn.Conv3d(c, outc, kernel_size =(num_param,1,1),stride=(num_param,1,1),bias= False)
