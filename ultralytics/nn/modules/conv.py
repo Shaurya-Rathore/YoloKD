@@ -388,7 +388,7 @@ class LDConv(nn.Module):
                    g_lb.unsqueeze(dim=1) * x_q_lb + \
                    g_rt.unsqueeze(dim=1) * x_q_rt
 
-        x_offset = self._reshape_x_offset(x_offset, self.num_param)
+        x_offset = self._reshape_x_offset(x_offset, self.num_param, self.outc)
         out = self.conv(x_offset)
 
         return out
@@ -456,11 +456,11 @@ class LDConv(nn.Module):
     
     #  Stacking resampled features in the row direction.
     @staticmethod
-    def _reshape_x_offset(x_offset, num_param):
+    def _reshape_x_offset(x_offset, num_param, outc):
         b, c, h, w, n = x_offset.size()
         # using Conv3d
         x_offset = x_offset.permute(0,1,4,2,3)
-        conv_layer = nn.Conv3d(c,6, kernel_size =(num_param,1,1),stride=(num_param,1,1),bias= False)
+        conv_layer = nn.Conv3d(c, outc, kernel_size =(num_param,1,1),stride=(num_param,1,1),bias= False)
         x_offset = conv_layer(x_offset)
         # using 1 × 1 Conv
         # x_offset = x_offset.permute(0,1,4,2,3), then, x_offset.view(b,c×num_param,h,w)  finally, Conv2d(c×num_param,c_out, kernel_size =1,stride=1,bias= False)
