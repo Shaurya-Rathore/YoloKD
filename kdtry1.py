@@ -1,6 +1,6 @@
 import torch
 from ultralytics import YOLO
-import wandb
+#import wandb
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 # Initialize W&B
