@@ -370,7 +370,7 @@ class LDConv(nn.Module):
                          dim=-1).long()
         q_lb = torch.cat([q_lt[..., :N], q_rb[..., N:]], dim=-1)
         q_rt = torch.cat([q_rb[..., :N], q_lt[..., N:]], dim=-1)
-        
+
         def check_indices(indices, name, h, w):
             assert torch.all(indices[..., :N] >= 0) and torch.all(indices[..., :N] < h), f"{name} indices out of height bounds"
             assert torch.all(indices[..., N:] >= 0) and torch.all(indices[..., N:] < w), f"{name} indices out of width bounds"
@@ -473,9 +473,6 @@ class LDConv(nn.Module):
     def _reshape_x_offset(x_offset, num_param, inc):
         b, c, h, w, n = x_offset.size()
         # using Conv3d
-        x_offset = x_offset.permute(0,1,4,2,3)
-        conv_layer = nn.Conv3d(c, inc, kernel_size =(num_param,1,1),stride=(num_param,1,1),bias= False)
-        x_offset = conv_layer(x_offset)
         # using 1 × 1 Conv
         # x_offset = x_offset.permute(0,1,4,2,3), then, x_offset.view(b,c×num_param,h,w)  finally, Conv2d(c×num_param,c_out, kernel_size =1,stride=1,bias= False)
         # using the column conv as follow， then, Conv2d(inc, outc, kernel_size=(num_param, 1), stride=(num_param, 1), bias=bias)
