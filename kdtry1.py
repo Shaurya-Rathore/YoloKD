@@ -1,11 +1,11 @@
 import torch
 from ultralytics import YOLO
-#import wandb
+import wandb
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 # Initialize W&B
-# wandb.login(key="833b800ff23eb3d26e6c85a8b9e1fc8bbafc9775") 
-# wandb.init(project="yolov8-LDConv")
+wandb.login(key="833b800ff23eb3d26e6c85a8b9e1fc8bbafc9775") 
+wandb.init(project="yolov8-LDConv")
 
 # Load the custom model configuration
 model = YOLO('yolov8-LDconv.yaml')
@@ -63,4 +63,4 @@ Result_Final_model = model.train(
 torch.save(model.model.state_dict(), '/kaggle/working/yolov8m_custom_weights.pt')
 
 # Finish W&B run
-# wandb.finish()
+wandb.finish()
