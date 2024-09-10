@@ -353,6 +353,7 @@ class LDConv(nn.Module):
     def forward(self, x):
         # N is num_param.
         offset = self.p_conv(x)
+        h, w = x.size(2), x.size(3)
         dtype = offset.data.type()
         N = offset.size(1) // 2
         # (b, 2N, h, w)
@@ -369,6 +370,16 @@ class LDConv(nn.Module):
                          dim=-1).long()
         q_lb = torch.cat([q_lt[..., :N], q_rb[..., N:]], dim=-1)
         q_rt = torch.cat([q_rb[..., :N], q_lt[..., N:]], dim=-1)
+        
+        def check_indices(indices, name, h, w):
+            assert torch.all(indices[..., :N] >= 0) and torch.all(indices[..., :N] < h), f"{name} indices out of height bounds"
+            assert torch.all(indices[..., N:] >= 0) and torch.all(indices[..., N:] < w), f"{name} indices out of width bounds"
+
+
+        check_indices(q_lt, "q_lt", h, w)
+        check_indices(q_rb, "q_rb", h, w)
+        check_indices(q_lb, "q_lb", h, w)
+        check_indices(q_rt, "q_rt", h, w)
 
         # clip p
         p = torch.cat([torch.clamp(p[..., :N], 0, x.size(2) - 1), torch.clamp(p[..., N:], 0, x.size(3) - 1)], dim=-1)
@@ -474,3 +485,5 @@ class LDConv(nn.Module):
         print(x_offset.shape)
         print(num_param)
         return x_offset
+    
+
