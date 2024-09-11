@@ -339,8 +339,7 @@ class LDConv(nn.Module):
         self.conv = nn.Sequential(nn.Conv2d(inc, outc, kernel_size=(num_param, 1), stride=(num_param, 1), bias=bias),nn.BatchNorm2d(outc),nn.SiLU())  # the conv adds the BN and SiLU to compare original Conv in YOLOv5.
         self.p_conv = nn.Conv2d(inc, 2 * num_param, kernel_size=3, padding=1, stride=stride)
         nn.init.constant_(self.p_conv.weight, 0)
-        print(self.p_conv.weight)
-        print(self.p_conv.bias)
+        nn.init.constant_(self.p_conv.bias, 0)
         self.p_conv.register_full_backward_hook(self._set_lr)
 
     @staticmethod
