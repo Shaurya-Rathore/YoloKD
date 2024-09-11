@@ -372,12 +372,12 @@ class LDConv(nn.Module):
         print(f"h: {h}, w: {w}")
 
 # Print specific values from each tensor at a chosen index
-        print(f"q_lt height index (first element): {q_lt[..., :N][0]}")
-        print(f"q_lt: {q_lt[0, 0, 0]}")  # Printing one value, adjust indices if needed
+        # print(f"q_lt height index (first element): {q_lt[..., :N][0]}")
+        # print(f"q_lt: {q_lt[0, 0, 0]}")  # Printing one value, adjust indices if needed
 
-        print(f"q_rb: {q_rb[0, 0, 0]}")  # Adjust to print the desired single value
-        print(f"q_lb: {q_lb[0, 0, 0]}")  # Adjust to print the desired single value
-        print(f"q_rt: {q_rt[0, 0, 0]}")  # Adjust to print the desired single value
+        # print(f"q_rb: {q_rb[0, 0, 0]}")  # Adjust to print the desired single value
+        # print(f"q_lb: {q_lb[0, 0, 0]}")  # Adjust to print the desired single value
+        # print(f"q_rt: {q_rt[0, 0, 0]}")  # Adjust to print the desired single value
 
 
         def check_indices(indices, name, h, w):
@@ -473,6 +473,7 @@ class LDConv(nn.Module):
         index = index.contiguous().unsqueeze(dim=1).expand(-1, c, -1, -1, -1).contiguous().view(b, c, -1)
 
         x_offset = x.gather(dim=-1, index=index).contiguous().view(b, c, h, w, N)
+        print(x_offset[...,0])
 
         return x_offset
 
