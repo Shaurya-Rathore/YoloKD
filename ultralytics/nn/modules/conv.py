@@ -369,13 +369,15 @@ class LDConv(nn.Module):
         q_lb = torch.cat([q_lt[..., :N], q_rb[..., N:]], dim=-1)
         q_rt = torch.cat([q_rb[..., :N], q_lt[..., N:]], dim=-1)
 
-        print(f"q_lt height indices: {q_lt[..., :N]}, height: {h}")
-
         print(f"h: {h}, w: {w}")
-        print(f"q_lt: {q_lt}")
-        print(f"q_rb: {q_rb}")
-        print(f"q_lb: {q_lb}")
-        print(f"q_rt: {q_rt}")
+
+# Print specific values from each tensor at a chosen index
+        print(f"q_lt height index (first element): {q_lt[..., :N][0]}")
+        print(f"q_lt: {q_lt[0, 0, 0]}")  # Printing one value, adjust indices if needed
+
+        print(f"q_rb: {q_rb[0, 0, 0]}")  # Adjust to print the desired single value
+        print(f"q_lb: {q_lb[0, 0, 0]}")  # Adjust to print the desired single value
+        print(f"q_rt: {q_rt[0, 0, 0]}")  # Adjust to print the desired single value
 
 
         def check_indices(indices, name, h, w):
