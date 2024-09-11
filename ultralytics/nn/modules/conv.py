@@ -368,6 +368,15 @@ class LDConv(nn.Module):
         q_lb = torch.cat([q_lt[..., :N], q_rb[..., N:]], dim=-1)
         q_rt = torch.cat([q_rb[..., :N], q_lt[..., N:]], dim=-1)
 
+        print(f"q_lt height indices: {q_lt[..., :N]}, height: {h}")
+
+        print(f"h: {h}, w: {w}")
+        print(f"q_lt: {q_lt}")
+        print(f"q_rb: {q_rb}")
+        print(f"q_lb: {q_lb}")
+        print(f"q_rt: {q_rt}")
+
+
         def check_indices(indices, name, h, w):
             assert torch.all(indices[..., :N] >= 0) and torch.all(indices[..., :N] < h), f"{name} indices out of height bounds"
             assert torch.all(indices[..., N:] >= 0) and torch.all(indices[..., N:] < w), f"{name} indices out of width bounds"
