@@ -456,6 +456,7 @@ class LDConv(nn.Module):
         p_n = self._get_p_n(N, dtype)
         # (1, 2N, h, w)
         p_0 = self._get_p_0(h, w, N, dtype)
+        print(f"p_0:{p_0}, p_n: {p_n}")
         p = p_0 + p_n + offset
         return p
 
@@ -472,7 +473,6 @@ class LDConv(nn.Module):
         index = index.contiguous().unsqueeze(dim=1).expand(-1, c, -1, -1, -1).contiguous().view(b, c, -1)
 
         x_offset = x.gather(dim=-1, index=index).contiguous().view(b, c, h, w, N)
-        print(x_offset[...,0])
 
         return x_offset
 
