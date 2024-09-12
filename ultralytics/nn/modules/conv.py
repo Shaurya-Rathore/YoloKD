@@ -456,7 +456,7 @@ class LDConv(nn.Module):
         p_n = self._get_p_n(N, dtype)
         # (1, 2N, h, w)
         p_0 = self._get_p_0(h, w, N, dtype)
-        print(f"p_0:{p_0}, p_n: {p_n}")
+        print(f"p_0:{p_0}, p_n: {p_n}, offset: {offset}")
         p = p_0 + p_n + offset
         print(f"p: {p}")
         return p
