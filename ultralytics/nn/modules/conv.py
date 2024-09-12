@@ -336,7 +336,7 @@ class LDConv(nn.Module):
         super(LDConv, self).__init__()
         self.num_param = num_param
         self.stride = stride
-        self.conv = nn.Sequential(nn.Conv2d(inc, outc, kernel_size=(num_param, 1), stride=(num_param, 1), bias=bias),nn.BatchNorm2d(outc),nn.SiLU())  # the conv adds the BN and SiLU to compare original Conv in YOLOv5.
+        self.conv = nn.Sequential(nn.Conv2d(inc, outc, kernel_size=(num_param, 1), stride=(num_param, 1), bias=bias))  # the conv adds the BN and SiLU to compare original Conv in YOLOv5.
         self.p_conv = nn.Conv2d(inc, 2 * num_param, kernel_size=3, padding=1, stride=stride)
         nn.init.uniform_(self.p_conv.weight, a=-1e-3, b=1e-3)
         nn.init.constant_(self.p_conv.bias, 0)
