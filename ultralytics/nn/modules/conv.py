@@ -350,6 +350,7 @@ class LDConv(nn.Module):
     def forward(self, x):
         # N is num_param.
         offset = self.p_conv(x)
+        print(offset[...,0])
         h, w = x.size(2), x.size(3)
         dtype = offset.data.type()
         N = offset.size(1) // 2
@@ -456,9 +457,9 @@ class LDConv(nn.Module):
         p_n = self._get_p_n(N, dtype)
         # (1, 2N, h, w)
         p_0 = self._get_p_0(h, w, N, dtype)
-        print(f"p_0:{p_0}, p_n: {p_n}, offset: {offset}")
+        print(f"p_0:{p_0.dtype}, p_n: {p_n.dtype}, offset: {offset.data.type}")
         p = p_0 + p_n + offset
-        print(f"p: {p}")
+        # print(f"p: {p}")
         return p
 
     def _get_x_q(self, x, q, N):
