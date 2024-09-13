@@ -39,7 +39,7 @@ def log_losses(trainer):
     if torch.isnan(loss_items[2]) or torch.isinf(loss_items[2]):
         print("Warning: DFL loss contains NaN or inf values")
     
-     wandb.log({
+    wandb.log({
          "train/box_loss": loss_items[0],
          "train/cls_loss": loss_items[1],
          "train/dfl_loss": loss_items[2]
