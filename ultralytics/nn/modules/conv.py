@@ -338,9 +338,6 @@ class LDConv(nn.Module):
         self.stride = stride
         self.conv = nn.Sequential(nn.Conv2d(inc, outc, kernel_size=(num_param, 1), stride=(num_param, 1), bias=bias),nn.BatchNorm2d(outc),nn.SiLU())  # the conv adds the BN and SiLU to compare original Conv in YOLOv5.
         self.p_conv = nn.Conv2d(inc, 2 * num_param, kernel_size=3, padding=1, stride=stride)
-        self.p_conv_v2 = nn.Conv2d(inc, 2 * num_param, kernel_size=3, padding=1, stride=stride)
-        nn.init.uniform_(self.p_conv_v2.weight, a=-1e-3, b=1e-3)
-        nn.init.constant_(self.p_conv_v2.bias, 0)
         nn.init.uniform_(self.p_conv.weight, a=-1e-3, b=1e-3)
         nn.init.constant_(self.p_conv.bias, 0)
         self.p_conv.register_full_backward_hook(self._set_lr)
@@ -352,12 +349,10 @@ class LDConv(nn.Module):
 
     def forward(self, x):
         # N is num_param.
-        h, w = x.size(2), x.size(3)
-        if(h==16 or h==320):
-            offset = self.p_conv_v2(x)
-        else:
-            offset = self.p_conv(x)
+        print(x.shape)
+        offset = self.p_conv(x)
         print(offset[...,0])
+        h, w = x.size(2), x.size(3)
         dtype = offset.data.type()
         N = offset.size(1) // 2
         # (b, 2N, h, w)
