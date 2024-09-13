@@ -52,7 +52,7 @@ model.add_callback('on_train_batch_end', log_losses)
 # Train the model with a reduced batch size
 Result_Final_model = model.train(
     data='/kaggle/input/waiddataset/WAID-main/WAID-main/WAID/data.yaml',
-    epochs=50,
+    epochs=5,
     batch=8,
     optimizer='auto',
     project='yolov8-LDConv',
