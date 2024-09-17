@@ -52,11 +52,13 @@ model.add_callback('on_train_batch_end', log_losses)
 # Train the model with a reduced batch size
 Result_Final_model = model.train(
     data='/kaggle/input/ooga-dataset/ooga/ooga-main/ooga/data.yaml',
+    warmup_epochs = 0,
     epochs=1,
     batch=8,
     optimizer='auto',
     project='yolov8-LDConv',
-    save=True
+    save=True,
+    device = device
 )
 
 # Save the model after training
