@@ -1,7 +1,7 @@
 import torch
 from ultralytics import YOLO
 import wandb
-from ultralytics.data.utils import check_dataset
+from ultralytics import check_dataset
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 # Initialize W&B
