@@ -341,6 +341,8 @@ class LDConv(nn.Module):
         nn.init.uniform_(self.p_conv.weight, a=-1e-3, b=1e-3)
         nn.init.constant_(self.p_conv.bias, 0)
         self.p_conv.register_full_backward_hook(self._set_lr)
+        for p in self.parameters():
+            p.register_hook(lambda grad: torch.clamp(grad, -1, 1))
 
     @staticmethod
     def _set_lr(module, grad_input, grad_output):
