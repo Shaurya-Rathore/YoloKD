@@ -349,9 +349,22 @@ class LDConv(nn.Module):
 
     def forward(self, x):
         # N is num_param.
-        print(x.shape)
+        print(f"Input shape: {x.shape}")
+        if x.shape[2] in [16, 320]:
+            print(f"Special case - height {x.shape[2]}")
+            print(f"Input stats: min={x.min().item():.4f}, max={x.max().item():.4f}, mean={x.mean().item():.4f}, std={x.std().item():.4f}")
+    
         offset = self.p_conv(x)
-        print(offset[...,0])
+    
+        if x.shape[2] in [16, 320]:
+            print(f"Offset stats: min={offset.min().item():.4f}, max={offset.max().item():.4f}, mean={offset.mean().item():.4f}, std={offset.std().item():.4f}")
+            print(f"Offset contains NaN: {torch.isnan(offset).any().item()}")
+        
+        if torch.isnan(offset).any():
+            nan_indices = torch.nonzero(torch.isnan(offset), as_tuple=True)
+            print(f"NaN indices: {nan_indices}")
+            print(f"Values around NaN: {offset[nan_indices[0][0], :, max(0, nan_indices[2][0]-1):nan_indices[2][0]+2, max(0, nan_indices[3][0]-1):nan_indices[3][0]+2]}")
+
         h, w = x.size(2), x.size(3)
         dtype = offset.data.type()
         N = offset.size(1) // 2
