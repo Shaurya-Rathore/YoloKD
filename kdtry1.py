@@ -52,7 +52,7 @@ model.add_callback('on_train_batch_end', log_losses)
 # Train the model with a reduced batch size
 Result_Final_model = model.train(
     data='/kaggle/input/ooga-dataset/ooga/ooga-main/ooga/data.yaml',
-    epochs=5,
+    epochs=1,
     batch=8,
     optimizer='auto',
     project='yolov8-LDConv',
