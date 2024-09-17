@@ -58,7 +58,8 @@ Result_Final_model = model.train(
     optimizer='auto',
     project='yolov8-LDConv',
     save=True,
-    device = device
+    device = device,
+    amp=False
 )
 
 # Save the model after training
