@@ -361,6 +361,7 @@ class LDConv(nn.Module):
         if x.shape[2] in [16, 320]:
             print(f"Offset stats: min={offset.min().item():.4f}, max={offset.max().item():.4f}, mean={offset.mean().item():.4f}, std={offset.std().item():.4f}")
             print(f"Offset contains NaN: {torch.isnan(offset).any().item()}")
+            print(offset[...,0].dtype)
         
         if torch.isnan(offset).any():
             nan_indices = torch.nonzero(torch.isnan(offset), as_tuple=True)
