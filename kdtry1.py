@@ -1,7 +1,6 @@
 import torch
 from ultralytics import YOLO
 import wandb
-from ultralytics import check_dataset
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 # Initialize W&B
@@ -10,8 +9,6 @@ wandb.init(project="yolov8-LDConv")
 
 # Load the custom model configuration
 model = YOLO('yolov8-LDconv.yaml')
-dataset = check_dataset('/kaggle/input/ooga-dataset/ooga/ooga-main/ooga/data.yaml')
-print(dataset)
 
 # Load the pretrained weights
 model_state_dict = torch.load('/kaggle/input/yolov8m-pt/yolov8m.pt')
