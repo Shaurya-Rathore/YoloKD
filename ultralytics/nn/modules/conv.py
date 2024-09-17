@@ -475,7 +475,10 @@ class LDConv(nn.Module):
         # (1, 2N, h, w)
         p_0 = self._get_p_0(h, w, N, dtype)
         print(f"p_0:{p_0.dtype}, p_n: {p_n.dtype}, offset: {offset.data.type}")
-        p = p_0 + p_n + offset
+        if torch.isnan(offset).any():
+            p = p_0 + p_n
+        else:
+            p = p_0 + p_n + offset
         # print(f"p: {p}")
         return p
 
