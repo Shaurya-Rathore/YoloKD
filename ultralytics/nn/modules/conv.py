@@ -340,7 +340,7 @@ class LDConv(nn.Module):
         self.p_conv = nn.Conv2d(inc, 2 * num_param, kernel_size=3, padding=1, stride=stride)
         nn.init.uniform_(self.p_conv.weight, a=-1e-3, b=1e-3)
         nn.init.constant_(self.p_conv.bias, 0)
-        if torch.isnan(self.p_conv.weight):
+        if torch.isnan(self.p_conv.weight).any():
             print("theres an issue here")
         self.p_conv.register_full_backward_hook(self._set_lr)
         for p in self.parameters():
