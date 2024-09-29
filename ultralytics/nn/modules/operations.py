@@ -7,9 +7,10 @@ from torch.autograd import Variable
 def drop_path(x, drop_prob):
     if drop_prob > 0.:
         keep_prob = 1. - drop_prob
-        mask = torch.cuda.FloatTensor(x.size(0), 1, 1, 1).bernoulli_(keep_prob)
-        x = x.div(keep_prob)
-        x = x.mul(mask)
+        # Create the mask on the same device as the input tensor `x`
+        mask = torch.FloatTensor(x.size(0), 1, 1, 1).bernoulli_(keep_prob).to(x.device)
+        x = x.div(keep_prob)  # Scale by keep_prob to maintain expected output during training
+        x = x.mul(mask)       # Apply the mask
     return x
 
 class ReLUConvBN(nn.Module):
@@ -89,14 +90,21 @@ class PoolBN(nn.Module):
         return self.bn(self.pool(x))
 
 class FactorizedReduce(nn.Module):
-    """Downsample input (Reduction Cell)."""
     def __init__(self, C_in, C_out, affine=True):
         super(FactorizedReduce, self).__init__()
-        assert C_out % 2 == 0
-        self.relu = nn.ReLU(inplace=False)
+        # Ensure C_out is twice of C_in to properly double channels
+        assert C_out == 2 * C_in, f"Expected output channels to be twice the input channels, got {C_out} and {C_in}"
+        
+        # Use two convolution paths to achieve the channel doubling
         self.conv_1 = nn.Conv2d(C_in, C_out // 2, 1, stride=2, padding=0, bias=False)
         self.conv_2 = nn.Conv2d(C_in, C_out // 2, 1, stride=2, padding=0, bias=False)
         self.bn = nn.BatchNorm2d(C_out, affine=affine)
+
+    def forward(self, x):
+        # Split input into two paths and concatenate
+        out = torch.cat([self.conv_1(x), self.conv_2(x)], dim=1)
+        out = self.bn(out)
+        return out
 
     def forward(self, x):
         out = torch.cat([self.conv_1(x), self.conv_2(x[:, :, 1:, 1:])], dim=1)

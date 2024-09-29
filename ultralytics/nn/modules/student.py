@@ -82,40 +82,51 @@ class SPP(nn.Module):
 class Cell(nn.Module):
     def __init__(self, genotype, C_prev_prev, C_prev, C, reduction, reduction_prev):
         super(Cell, self).__init__()
+
         self.reduction = reduction
 
+        # Adjust channels if the previous cell was a reduction cell
         if reduction_prev:
             self.preprocess0 = FactorizedReduce(C_prev_prev, C, affine=False)
         else:
             self.preprocess0 = ReLUConvBN(C_prev_prev, C, 1, 1, 0, affine=False)
-        
+
+        # Preprocess s1 to match current channel count
         self.preprocess1 = ReLUConvBN(C_prev, C, 1, 1, 0, affine=False)
 
-        # Build the DAG (Directed Acyclic Graph)
+        # Compile the operations based on the genotype
         self._compile(C, genotype, reduction)
 
     def _compile(self, C, genotype, reduction):
-        """
-        Compile the cell by creating the list of operations (edges) and connections.
-        """
         self._ops = nn.ModuleList()
         self.indices = []
-        self.concat = genotype.concat
-        
-        # Loop through each operation and input pair (dag-like structure)
-        for name, index in genotype:
+
+        # Determine the operations and stride based on whether the cell is reduction or normal
+        op_names, indices = (genotype.reduce, genotype.reduce_concat) if reduction else (genotype.normal, genotype.normal_concat)
+        self.concat = indices
+
+        for name, index in op_names:
             stride = 2 if reduction and index < 2 else 1
             op = OPS[name](C, stride, True)
             self._ops.append(op)
             self.indices.append(index)
 
+        # If it's a reduction cell, prepare to double the channels after concatenation
+        if reduction:
+            self.post_concat_conv = nn.Sequential(
+                nn.ReLU(inplace=False),
+                nn.Conv2d(len(self.concat) * C, 2 * C, 1, bias=False),  # Explicitly double the channels
+                nn.BatchNorm2d(2 * C)
+            )
+        else:
+            self.post_concat_conv = None
+
     def forward(self, s0, s1, drop_prob):
-        """
-        Forward pass through the cell.
-        """
+        # Preprocess s0 and s1 before feeding into the cell
         s0 = self.preprocess0(s0)
         s1 = self.preprocess1(s1)
 
+        # Apply operations based on the genotype
         states = [s0, s1]
         for i in range(len(self._ops)):
             h = states[self.indices[i]]
@@ -124,9 +135,15 @@ class Cell(nn.Module):
                 if not isinstance(self._ops[i], Identity):
                     h = drop_path(h, drop_prob)
             states.append(h)
-        
-        # Concatenate along depth dimension
-        return torch.cat([states[i] for i in self.concat], dim=1)
+
+        # Concatenate the selected states
+        concatenated = torch.cat([states[i] for i in self.concat], dim=1)
+
+        # If reduction cell, apply post_concat_conv to double the channels
+        if self.reduction:
+            concatenated = self.post_concat_conv(concatenated)
+
+        return concatenated
 
 
 # Example Genotype structure to be used in the normal and reduction cells
@@ -144,56 +161,192 @@ class Genotype:
 # Specific Cell Implementation
 class NormalCell(Cell):
     def __init__(self, C_prev_prev, C_prev, C, reduction_prev, genotype):
-        super(NormalCell, self).__init__(genotype.normal, C_prev_prev, C_prev, C, reduction=False, reduction_prev=reduction_prev)
+        super(NormalCell, self).__init__(genotype, C_prev_prev, C_prev, C, reduction=False, reduction_prev=reduction_prev)
 
 class ReductionCell(Cell):
     def __init__(self, C_prev_prev, C_prev, C, reduction_prev, genotype):
-        super(ReductionCell, self).__init__(genotype.reduce, C_prev_prev, C_prev, C, reduction=True, reduction_prev=reduction_prev)
-        
-from torch.autograd import Variable
+        super(ReductionCell, self).__init__(genotype, C_prev_prev, C_prev, C, reduction=True, reduction_prev=reduction_prev)
 
 # Mocking a simple genotype for testing purposes
 class SimpleGenotype:
     def __init__(self):
-        self.normal = [("ldconv_3x3", 0), ("skip_connect", 1)]
-        self.normal_concat = [2, 3]
+        # Operations for normal cell
+        self.normal = [("lde_conv_3x3", 0), ("skip_connect", 1)]
+        
+        # Indices of intermediate nodes to concatenate for the normal cell
+        self.normal_concat = [2, 3]  # Example concat indices
+        
+        # Operations for reduction cell
         self.reduce = [("sep_conv_5x5", 0), ("max_pool_3x3", 1)]
-        self.reduce_concat = [2, 3]
+        
+        # Indices of intermediate nodes to concatenate for the reduction cell
+        self.reduce_concat = [2, 3]  # Example concat indices
+        
+class CombinedCellStructure(nn.Module):
+    def __init__(self, C_in, num_classes, num_cells, genotype, reduction_indices, C):
+        super(CombinedCellStructure, self).__init__()
 
-# Test function for NormalCell and ReductionCell
-def test_cells():
-    # Hyperparameters and sizes
-    batch_size = 4
-    C = 16  # Output channels
-    C_prev_prev = 32  # Channels for s0 (input 0)
-    C_prev = 32  # Channels for s1 (input 1)
-    height = 32
-    width = 32
-    drop_prob = 0.2
+        self.num_cells = num_cells
+        self.reduction_indices = reduction_indices
+        self.cells = nn.ModuleList()
 
-    # Create random input tensors (from previous layers)
-    s0 = torch.randn(batch_size, C_prev_prev, height, width)
-    s1 = torch.randn(batch_size, C_prev, height, width)
+        C_prev_prev, C_prev = C_in, C
+        reduction_prev = False
 
-    # Instantiate the genotype
-    genotype = SimpleGenotype()
+        for i in range(num_cells):
+            if i in reduction_indices:
+                # Use a reduction cell to downsample and increase channels
+                cell = ReductionCell(C_prev_prev, C_prev, C, reduction_prev, genotype)
+                reduction_prev = True
+                C_prev_prev, C_prev = C_prev, C  # Update channels after reduction
+            else:
+                # Use a normal cell
+                cell = NormalCell(C_prev_prev, C_prev, C, reduction_prev, genotype)
+                reduction_prev = False
+                C_prev_prev, C_prev = C_prev, C
 
-    # Instantiate and test NormalCell
-    print("Testing NormalCell...")
-    normal_cell = NormalCell(C_prev_prev=C_prev_prev, C_prev=C_prev, C=C, reduction_prev=False, genotype=genotype)
-    output_normal = normal_cell(Variable(s0), Variable(s1), drop_prob)
-    print(f"NormalCell output shape: {output_normal.shape}")
-    assert output_normal.shape == (batch_size, 2 * C, height, width), "NormalCell output shape mismatch"
+            self.cells.append(cell)
 
-    # Instantiate and test ReductionCell (downsample the input by stride=2)
-    print("Testing ReductionCell...")
-    reduction_cell = ReductionCell(C_prev_prev=C_prev_prev, C_prev=C_prev, C=C, reduction_prev=False, genotype=genotype)
-    output_reduction = reduction_cell(Variable(s0), Variable(s1), drop_prob)
-    print(f"ReductionCell output shape: {output_reduction.shape}")
-    assert output_reduction.shape == (batch_size, 2 * C, height // 2, width // 2), "ReductionCell output shape mismatch"
+            # Double `C` after reduction cells for next normal cell
+            if reduction_prev:
+                C *= 2
 
-    print("All tests passed.")
+        self.global_pooling = nn.AdaptiveAvgPool2d(1)
+        self.classifier = nn.Linear(C_prev, num_classes)
 
-# Run the tests
+    def forward(self, x, drop_prob):
+        s0 = s1 = x
+
+        # Iterate through each cell, apply the forward pass
+        for i, cell in enumerate(self.cells):
+            s0, s1 = s1, cell(s0, s1, drop_prob)
+            print(f"After Cell {i}: s0 channels: {s0.shape[1]}, s1 channels: {s1.shape[1]}")  # Debugging statement
+
+        # Apply global pooling and classifier
+        out = self.global_pooling(s1)
+        out = out.view(out.size(0), -1)
+        logits = self.classifier(out)
+
+        return logits
+
+import unittest
+from torch.autograd import Variable
+
+class TestCombinedCellStructure(unittest.TestCase):
+    
+    def setUp(self):
+        # Parameters for testing
+        self.batch_size = 2
+        self.C_in = 16  # Input channels
+        self.height, self.width = 32, 32  # Input spatial size
+        self.num_classes = 10  # Number of output classes
+        self.num_cells = 6  # Total number of cells (normal + reduction)
+        self.reduction_indices = [2, 4]  # Reduction cells at these indices
+        self.initial_C = 16  # Initial output channels after the first cell
+        
+        # Instantiate the SimpleGenotype (mock genotype for testing)
+        self.genotype = SimpleGenotype()
+        
+        # Instantiate the CombinedCellStructure
+        self.model = CombinedCellStructure(C_in=self.C_in, 
+                                           num_classes=self.num_classes, 
+                                           num_cells=self.num_cells, 
+                                           genotype=self.genotype, 
+                                           reduction_indices=self.reduction_indices, 
+                                           C=self.initial_C)
+        
+    def test_forward_pass(self):
+        """
+        Test that the forward pass runs correctly and returns the right output shape.
+        """
+        # Create a random input tensor
+        x = torch.randn(self.batch_size, self.C_in, self.height, self.width)
+        
+        # Run the model forward pass with a dropout probability
+        drop_prob = 0.2
+        logits = self.model(Variable(x), drop_prob)
+        
+        # Assert that the output has the correct shape
+        self.assertEqual(logits.shape, (self.batch_size, self.num_classes), 
+                         "Output shape mismatch in forward pass")
+    
+    def test_reduction_cells(self):
+        """
+        Test that reduction cells are correctly placed and that spatial dimensions are halved.
+        """
+        # Create a random input tensor
+        x = torch.randn(self.batch_size, self.C_in, self.height, self.width)
+        
+        # Run the model forward pass and inspect intermediate outputs
+        drop_prob = 0.0
+        s0 = s1 = Variable(x)
+        
+        # Check cell outputs
+        for i, cell in enumerate(self.model.cells):
+            s0, s1 = s1, cell(s0, s1, drop_prob)
+            
+            if i in self.reduction_indices:
+                # Assert that the spatial dimensions are halved after reduction cells
+                self.assertEqual(s1.shape[2], self.height // 2, 
+                                 f"Reduction cell at index {i} did not halve the height")
+                self.assertEqual(s1.shape[3], self.width // 2, 
+                                 f"Reduction cell at index {i} did not halve the width")
+                
+                # Update height and width after reduction
+                self.height //= 2
+                self.width //= 2
+    
+    def test_output_channels(self):
+        """
+        Test that the number of output channels is doubled after reduction cells.
+        """
+        # Create a random input tensor
+        x = torch.randn(self.batch_size, self.C_in, self.height, self.width)
+        
+        # Run the model forward pass and inspect intermediate outputs
+        drop_prob = 0.0
+        s0 = s1 = Variable(x)
+        C_prev = self.initial_C
+        
+        for i, cell in enumerate(self.model.cells):
+            s0, s1 = s1, cell(s0, s1, drop_prob)
+            
+            if i in self.reduction_indices:
+                # Assert that the number of channels doubled after reduction cells
+                self.assertEqual(s1.shape[1], 2 * C_prev, 
+                                 f"Reduction cell at index {i} did not double the channels")
+                C_prev = 2 * C_prev  # Update the channel count after reduction
+            else:
+                self.assertEqual(s1.shape[1], C_prev, 
+                                 f"Normal cell at index {i} changed the number of channels unexpectedly")
+    
+    def test_edge_case_small_input(self):
+        """
+        Test the model with smaller input dimensions to ensure it handles them correctly.
+        """
+        small_height, small_width = 16, 16  # Smaller spatial dimensions
+        x = torch.randn(self.batch_size, self.C_in, small_height, small_width)
+        
+        # Run the model forward pass with a small input size
+        drop_prob = 0.2
+        logits = self.model(Variable(x), drop_prob)
+        
+        # Assert that the output has the correct shape
+        self.assertEqual(logits.shape, (self.batch_size, self.num_classes), 
+                         "Output shape mismatch with small input")
+    
+    def test_dropout_handling(self):
+        """
+        Test that the dropout probability is applied correctly and does not raise errors.
+        """
+        x = torch.randn(self.batch_size, self.C_in, self.height, self.width)
+        
+        # Run the model forward pass with varying dropout probabilities
+        for drop_prob in [0.0, 0.2, 0.5, 0.8]:
+            try:
+                logits = self.model(Variable(x), drop_prob)
+            except Exception as e:
+                self.fail(f"Forward pass failed with drop_prob={drop_prob}: {e}")
+
 if __name__ == "__main__":
-    test_cells()
+    unittest.main()
