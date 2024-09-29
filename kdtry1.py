@@ -5,14 +5,14 @@ import wandb
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 # Initialize W&B
 wandb.login(key="833b800ff23eb3d26e6c85a8b9e1fc8bbafc9775") 
-wandb.init(project="yolov8-LDConv")
+wandb.init(project="yolov8")
 
 # Load the custom model configuration
 model = YOLO('yolov8-LDconv.yaml')
 
 # Load the pretrained weights
 model_state_dict = torch.load('/kaggle/input/yolov8m-pt/yolov8m.pt')
-model.model.load_state_dict(model_state_dict, strict=False)
+# model.model.load_state_dict(model_state_dict, strict=False)
 model.model.to(device)
 print(device)
 # Check for valid labels
@@ -51,12 +51,15 @@ model.add_callback('on_train_batch_end', log_losses)
 
 # Train the model with a reduced batch size
 Result_Final_model = model.train(
-    data='/kaggle/input/ooga-dataset/ooga/ooga-main/ooga/data.yaml',
-    epochs=5,
+    data='/kaggle/input/waiddataset/WAID-main/WAID-main/WAID/data.yaml',
+    warmup_epochs = 0,
+    epochs=30,
     batch=8,
     optimizer='auto',
-    project='yolov8-LDConv',
-    save=True
+    project='yolov8',
+    save=True,
+    device = device,
+    amp=False
 )
 
 # Save the model after training
