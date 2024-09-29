@@ -353,9 +353,9 @@ class LDConv(nn.Module):
 
     def forward(self, x):
         # N is num_param.
-        print(f"x:{x.shape()}")
+        print(f"x:{x.shape}")
         offset = self.p_conv(x)
-        print(f"offset:{offset.shape()}")
+        print(f"offset:{offset.shape}")
         if torch.isnan(offset).any():
             nan_indices = torch.nonzero(torch.isnan(offset), as_tuple=True)
             print(f"h: {h}, w: {w}")
