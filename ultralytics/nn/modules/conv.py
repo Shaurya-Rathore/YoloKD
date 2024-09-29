@@ -356,7 +356,6 @@ class LDConv(nn.Module):
         print(f"x:{x.shape()}")
         offset = self.p_conv(x)
         print(f"offset:{offset.shape()}")
-        print(
         if torch.isnan(offset).any():
             nan_indices = torch.nonzero(torch.isnan(offset), as_tuple=True)
             print(f"h: {h}, w: {w}")
