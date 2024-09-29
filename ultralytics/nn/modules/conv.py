@@ -340,6 +340,8 @@ class LDConv(nn.Module):
         self.p_conv = nn.Conv2d(inc, 2 * num_param, kernel_size=3, padding=1, stride=stride)
         nn.init.uniform_(self.p_conv.weight, a=-1e-3, b=1e-3)
         nn.init.constant_(self.p_conv.bias, 0)
+        if torch.isnan(self.p_conv.weight):
+            print("theres an issue here")
         self.p_conv.register_full_backward_hook(self._set_lr)
         for p in self.parameters():
             p.register_hook(lambda grad: torch.clamp(grad, -1, 1))
@@ -351,20 +353,12 @@ class LDConv(nn.Module):
 
     def forward(self, x):
         # N is num_param.
-        print(f"Input shape: {x.shape}")
-        if x.shape[2] in [16, 320]:
-            print(f"Special case - height {x.shape[2]}")
-            print(f"Input stats: min={x.min().item():.4f}, max={x.max().item():.4f}, mean={x.mean().item():.4f}, std={x.std().item():.4f}")
     
         offset = self.p_conv(x)
-    
-        if x.shape[2] in [16, 320]:
-            print(f"Offset stats: min={offset.min().item():.4f}, max={offset.max().item():.4f}, mean={offset.mean().item():.4f}, std={offset.std().item():.4f}")
-            print(f"Offset contains NaN: {torch.isnan(offset).any().item()}")
-            print(offset[...,0].dtype)
         
         if torch.isnan(offset).any():
             nan_indices = torch.nonzero(torch.isnan(offset), as_tuple=True)
+            print(f"h: {h}, w: {w}")
             print(f"NaN indices: {nan_indices}")
             print(f"Values around NaN: {offset[nan_indices[0][0], :, max(0, nan_indices[2][0]-1):nan_indices[2][0]+2, max(0, nan_indices[3][0]-1):nan_indices[3][0]+2]}")
 
@@ -385,8 +379,6 @@ class LDConv(nn.Module):
                          dim=-1).long()
         q_lb = torch.cat([q_lt[..., :N], q_rb[..., N:]], dim=-1)
         q_rt = torch.cat([q_rb[..., :N], q_lt[..., N:]], dim=-1)
-
-        print(f"h: {h}, w: {w}")
 
 # Print specific values from each tensor at a chosen index
         # print(f"q_lt height index (first element): {q_lt[..., :N][0]}")
