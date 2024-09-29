@@ -12,7 +12,7 @@ model = YOLO('yolov8-LDconv.yaml')
 
 # Load the pretrained weights
 model_state_dict = torch.load('/kaggle/input/yolov8m-pt/yolov8m.pt')
-model.model.load_state_dict(model_state_dict, strict=False)
+# model.model.load_state_dict(model_state_dict, strict=False)
 model.model.to(device)
 print(device)
 # Check for valid labels
