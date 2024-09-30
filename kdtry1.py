@@ -77,6 +77,6 @@ Result_Final_model = model.train(
 )
 
 # Save the model after training
-torch.save(model.model.state_dict(), '/kaggle/working/yolov8m_custom_weights.pt')
+torch.save(model.model.state_dict(), '/YoloKD/yolowts.pt')
 # Finish W&B run
 wandb.finish()
