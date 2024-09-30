@@ -1,6 +1,20 @@
 import torch
 from ultralytics import YOLO
 import wandb
+import argparse
+
+parser = argparse.ArgumentParser()
+parser.add_argument('--epochs', type=int,required=False, default=3)
+parser.add_argument('--data_dir', type=str,required=False, default='/kaggle/input/waiddataset/WAID-main/WAID-main/WAID/data.yaml')
+parser.add_argument('--path_dir', type=str,required=False, default='/kaggle/input/yolov8m-pt/yolov8m.pt')
+parser.add_argument('--batch_size', type=int,required=False, default=16)
+parser.add_argument('--lr', type=float,required=False, default=1e-4)
+arguments = parser.parse_args()
+
+epochs = arguments.epochs
+data_dir = arguments.data_dir
+path_dir = arguments.path_dir
+batch_size = arguments.batch_size
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 # Initialize W&B
@@ -11,7 +25,7 @@ wandb.init(project="yolov8")
 model = YOLO('yolov8-LDconv.yaml')
 
 # Load the pretrained weights
-model_state_dict = torch.load('/kaggle/input/yolov8m-pt/yolov8m.pt')
+model_state_dict = torch.load(path_dir)
 # model.model.load_state_dict(model_state_dict, strict=False)
 model.model.to(device)
 print(device)
@@ -51,10 +65,10 @@ model.add_callback('on_train_batch_end', log_losses)
 
 # Train the model with a reduced batch size
 Result_Final_model = model.train(
-    data='/kaggle/input/waiddataset/WAID-main/WAID-main/WAID/data.yaml',
-    warmup_epochs = 0,
-    epochs=30,
-    batch=8,
+    data= data_dir,
+    warmup_epochs = 2,
+    epochs=epochs,
+    batch=batch_size,
     optimizer='auto',
     project='yolov8',
     save=True,
@@ -63,6 +77,6 @@ Result_Final_model = model.train(
 )
 
 # Save the model after training
-torch.save(model.model.state_dict(), '/kaggle/working/yolov8m_custom_weights.pt')
+torch.save(model.model.state_dict(), '/YoloKD/yolowts.pt')
 # Finish W&B run
 wandb.finish()
