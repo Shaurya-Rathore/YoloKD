@@ -25,7 +25,7 @@ class ReLUConvBN(nn.Module):
 
     def forward(self, x):
         return self.op(x)
-
+    
 class SepConv(nn.Module):
     """Separable Convolution used in DARTS."""
     def __init__(self, C_in, C_out, kernel_size, stride, padding, affine=True):

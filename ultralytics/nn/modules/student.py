@@ -85,66 +85,81 @@ class Cell(nn.Module):
 
         self.reduction = reduction
 
-        # Adjust channels if the previous cell was a reduction cell
+        # Preprocessing step for s0 (previous-previous state)
         if reduction_prev:
             self.preprocess0 = FactorizedReduce(C_prev_prev, C, affine=False)
         else:
             self.preprocess0 = ReLUConvBN(C_prev_prev, C, 1, 1, 0, affine=False)
 
-        # Preprocess s1 to match current channel count
-        self.preprocess1 = ReLUConvBN(C_prev, C, 1, 1, 0, affine=False)
+        # Preprocessing step for s1 (previous state)
+        # Dynamically adjust the number of channels of s1 to match C
+        if C_prev != C:
+            self.preprocess1 = ReLUConvBN(C_prev, C, 1, 1, 0, affine=False)
+        else:
+            self.preprocess1 = nn.Identity()  # If channels match, no need to change
 
-        # Compile the operations based on the genotype
+        # Compile operations based on the genotype
         self._compile(C, genotype, reduction)
 
     def _compile(self, C, genotype, reduction):
         self._ops = nn.ModuleList()
         self.indices = []
 
-        # Determine the operations and stride based on whether the cell is reduction or normal
+        # Set operation names and indices based on the cell type
         op_names, indices = (genotype.reduce, genotype.reduce_concat) if reduction else (genotype.normal, genotype.normal_concat)
         self.concat = indices
 
         for name, index in op_names:
+            # Set stride to 2 for reduction operations, otherwise 1
             stride = 2 if reduction and index < 2 else 1
             op = OPS[name](C, stride, True)
             self._ops.append(op)
             self.indices.append(index)
 
-        # If it's a reduction cell, prepare to double the channels after concatenation
-        if reduction:
-            self.post_concat_conv = nn.Sequential(
-                nn.ReLU(inplace=False),
-                nn.Conv2d(len(self.concat) * C, 2 * C, 1, bias=False),  # Explicitly double the channels
-                nn.BatchNorm2d(2 * C)
-            )
-        else:
-            self.post_concat_conv = None
-
     def forward(self, s0, s1, drop_prob):
-        # Preprocess s0 and s1 before feeding into the cell
+        # Preprocess s0 and s1 to match the expected input channels
         s0 = self.preprocess0(s0)
         s1 = self.preprocess1(s1)
 
-        # Apply operations based on the genotype
+        # Debugging output for preprocessing
+        print(f"After preprocessing: s0 shape: {s0.shape}, s1 shape: {s1.shape}")
+
+        # Ensure that both s0 and s1 have the same number of channels before proceeding
+        if s0.shape[1] != s1.shape[1]:
+            raise ValueError(f"Channel mismatch after preprocessing: s0 has {s0.shape[1]} channels, s1 has {s1.shape[1]} channels")
+
+        # Track intermediate states for concatenation
         states = [s0, s1]
+
+        # Perform operations and collect new states
         for i in range(len(self._ops)):
             h = states[self.indices[i]]
+            print(f"Before operation {i} ({type(self._ops[i]).__name__}): input shape: {h.shape}")
+
             h = self._ops[i](h)
+
+            # Debugging output for each operation
+            print(f"After operation {i} ({type(self._ops[i]).__name__}): output shape: {h.shape}")
+
+            # Apply drop path during training if drop_prob is set
             if self.training and drop_prob > 0.:
                 if not isinstance(self._ops[i], Identity):
                     h = drop_path(h, drop_prob)
+
             states.append(h)
 
-        # Concatenate the selected states
+        # Concatenate selected states and return
         concatenated = torch.cat([states[i] for i in self.concat], dim=1)
 
-        # If reduction cell, apply post_concat_conv to double the channels
-        if self.reduction:
-            concatenated = self.post_concat_conv(concatenated)
+        # Debugging output for concatenation
+        print(f"After concatenation: concatenated shape: {concatenated.shape}")
+
+        # Verify the channel count after concatenation to ensure correctness
+        expected_channels = sum([states[i].shape[1] for i in self.concat])
+        if concatenated.shape[1] != expected_channels:
+            raise ValueError(f"Channel mismatch after concatenation: expected {expected_channels} channels, but got {concatenated.shape[1]} channels")
 
         return concatenated
-
 
 # Example Genotype structure to be used in the normal and reduction cells
 class Genotype:
