@@ -82,8 +82,8 @@ class SPP(nn.Module):
 class Cell(nn.Module):
     def __init__(self, genotype, C_prev_prev, C_prev, C, reduction, reduction_prev):
         super(Cell, self).__init__()
-
         self.reduction = reduction
+        self.multiplier = len(genotype.reduce_concat) if reduction else len(genotype.normal_concat)
 
         # Preprocessing step for s0 (previous-previous state)
         if reduction_prev:
@@ -158,7 +158,7 @@ class Cell(nn.Module):
         expected_channels = sum([states[i].shape[1] for i in self.concat])
         if concatenated.shape[1] != expected_channels:
             raise ValueError(f"Channel mismatch after concatenation: expected {expected_channels} channels, but got {concatenated.shape[1]} channels")
-
+        
         return concatenated
 
 # Example Genotype structure to be used in the normal and reduction cells
@@ -205,26 +205,20 @@ class CombinedCellStructure(nn.Module):
         self.reduction_indices = reduction_indices
         self.cells = nn.ModuleList()
 
-        C_prev_prev, C_prev = C_in, C
+        C_prev_prev, C_prev, C_curr = C_in, C_in, C
         reduction_prev = False
 
         for i in range(num_cells):
             if i in reduction_indices:
-                # Use a reduction cell to downsample and increase channels
-                cell = ReductionCell(C_prev_prev, C_prev, C, reduction_prev, genotype)
+                C_curr *= 2
+                cell = ReductionCell(C_prev_prev, C_prev, C_curr, reduction_prev, genotype)
                 reduction_prev = True
-                C_prev_prev, C_prev = C_prev, C  # Update channels after reduction
             else:
-                # Use a normal cell
-                cell = NormalCell(C_prev_prev, C_prev, C, reduction_prev, genotype)
+                cell = NormalCell(C_prev_prev, C_prev, C_curr, reduction_prev, genotype)
                 reduction_prev = False
-                C_prev_prev, C_prev = C_prev, C
 
             self.cells.append(cell)
-
-            # Double `C` after reduction cells for next normal cell
-            if reduction_prev:
-                C *= 2
+            C_prev_prev, C_prev = C_prev, cell.multiplier * C_curr
 
         self.global_pooling = nn.AdaptiveAvgPool2d(1)
         self.classifier = nn.Linear(C_prev, num_classes)
@@ -232,12 +226,10 @@ class CombinedCellStructure(nn.Module):
     def forward(self, x, drop_prob):
         s0 = s1 = x
 
-        # Iterate through each cell, apply the forward pass
         for i, cell in enumerate(self.cells):
             s0, s1 = s1, cell(s0, s1, drop_prob)
-            print(f"After Cell {i}: s0 channels: {s0.shape[1]}, s1 channels: {s1.shape[1]}")  # Debugging statement
+            print(f"After Cell {i}: s0 shape: {s0.shape}, s1 shape: {s1.shape}")
 
-        # Apply global pooling and classifier
         out = self.global_pooling(s1)
         out = out.view(out.size(0), -1)
         logits = self.classifier(out)
