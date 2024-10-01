@@ -179,13 +179,15 @@ class LDConv(nn.Module):
         mod_number = self.num_param % base_int
         p_n_x,p_n_y = torch.meshgrid(
             torch.arange(0, row_number),
-            torch.arange(0,base_int))
+            torch.arange(0,base_int),
+            indexing='ij')
         p_n_x = torch.flatten(p_n_x)
         p_n_y = torch.flatten(p_n_y)
         if mod_number >  0:
             mod_p_n_x,mod_p_n_y = torch.meshgrid(
                 torch.arange(row_number,row_number+1),
-                torch.arange(0,mod_number))
+                torch.arange(0,mod_number),
+                indexing='ij')
 
             mod_p_n_x = torch.flatten(mod_p_n_x)
             mod_p_n_y = torch.flatten(mod_p_n_y)
@@ -198,7 +200,8 @@ class LDConv(nn.Module):
     def _get_p_0(self, h, w, N, dtype):
         p_0_x, p_0_y = torch.meshgrid(
             torch.arange(0, h * self.stride, self.stride),
-            torch.arange(0, w * self.stride, self.stride))
+            torch.arange(0, w * self.stride, self.stride),
+            indexing='ij')
 
         p_0_x = torch.flatten(p_0_x).view(1, 1, h, w).repeat(1, N, 1, 1)
         p_0_y = torch.flatten(p_0_y).view(1, 1, h, w).repeat(1, N, 1, 1)

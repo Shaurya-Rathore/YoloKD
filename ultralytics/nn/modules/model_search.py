@@ -66,7 +66,18 @@ class Cell(nn.Module):
     states = [s0, s1]
     offset = 0
     for i in range(self._steps):
-      s = sum(self._ops[offset+j](h, weights[offset+j]) for j, h in enumerate(states))
+      s = []
+      for j, h in enumerate(states):
+        # Apply the operation
+        out = self._ops[offset+j](h, weights[offset+j])
+        
+        # Ensure all outputs have the same size as s0
+        if out.size()[2:] != s0.size()[2:]:
+          out = F.interpolate(out, size=s0.size()[2:], mode='bilinear', align_corners=True)
+        
+        s.append(out)
+      
+      s = sum(s)
       offset += len(states)
       states.append(s)
 
