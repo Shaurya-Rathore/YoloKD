@@ -59,7 +59,7 @@ class Cutout(object):
         return img
 
 
-def _data_transforms_cifar10(args):
+def _data_transforms_WAID(args):
   WAID_MEAN = [0.4788, 0.4791, 0.4789]
   WAID_STD = [0.2009, 0.2009, 0.2009]
 
@@ -120,8 +120,8 @@ def create_exp_dir(path, scripts_to_save=None):
       shutil.copyfile(script, dst_file)
 
 
-Test Mean = [0.4766, 0.4769, 0.4767]
-Test Std = [0.1985, 0.1984, 0.1984]
+Test_Mean = [0.4766, 0.4769, 0.4767]
+Test_Std = [0.1985, 0.1984, 0.1984]
 
-Val Mean= [0.4804, 0.4807, 0.4805]
-Val Std:[0.1996, 0.1995, 0.1995]
+Val_Mean= [0.4804, 0.4807, 0.4805]
+Val_Std=[0.1996, 0.1995, 0.1995]
