@@ -459,11 +459,18 @@ class LDConv(nn.Module):
 
         return p_0
 
+    def _get_p_n1(self, N, dtype):
+        p_n_x = torch.tensor([0, 0, 1, 2, 2])
+        p_n_y = torch.tensor([0, 2, 1, 0, 2])
+        p_n = torch.cat([p_n_x,p_n_y], 0)
+        p_n = p_n.view(1, 2 * N, 1, 1).type(dtype)
+        return p_n
+        
     def _get_p(self, offset, dtype):
         N, h, w = offset.size(1) // 2, offset.size(2), offset.size(3)
 
         # (1, 2N, 1, 1)
-        p_n = self._get_p_n(N, dtype)
+        p_n = self._get_p_n1(N, dtype)
         # (1, 2N, h, w)
         p_0 = self._get_p_0(h, w, N, dtype)
         #print(f"p_0:{p_0.dtype}, p_n: {p_n.dtype}, offset: {offset.data.type}")
