@@ -4,9 +4,9 @@ import wandb
 import argparse
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--epochs', type=int,required=False, default=3)
-parser.add_argument('--data_dir', type=str,required=False, default='/kaggle/input/waiddataset/WAID-main/WAID-main/WAID/data.yaml')
-parser.add_argument('--path_dir', type=str,required=False, default='/kaggle/input/yolov8m-pt/yolov8m.pt')
+parser.add_argument('--epochs', type=int,required=False, default=30)
+parser.add_argument('--data_dir', type=str,required=False, default='C:/Users/User2/Documents/LDCONV_KD/WAID-main/WAID/data.yaml')
+parser.add_argument('--path_dir', type=str,required=False, default='C:/Users/User2/Documents/LDCONV_KD/YOLO_weights/yolov8m.pt')
 parser.add_argument('--batch_size', type=int,required=False, default=16)
 parser.add_argument('--lr', type=float,required=False, default=1e-4)
 arguments = parser.parse_args()
