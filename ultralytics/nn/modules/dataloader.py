@@ -6,16 +6,13 @@ from PIL import Image
 import numpy as np
 
 class YOLOObjectDetectionDataset(Dataset):
-    def __init__(self, img_dir, label_dir, classes, img_size=416, transform=None):
+    def __init__(self, img_dir, label_dir, classes, img_size=600, transform=None):
         self.img_dir = img_dir
         self.label_dir = label_dir
         self.img_size = img_size
         self.classes = classes
         self.class_to_idx = {cls: idx for idx, cls in enumerate(classes)}
-        self.transform = transform or transforms.Compose([
-            transforms.Resize((img_size, img_size)),
-            transforms.ToTensor(),
-        ])
+        self.transform = transform
         self.img_files = [f for f in os.listdir(img_dir) if f.endswith(('.png', '.jpg', '.jpeg'))]
 
     def __len__(self):
