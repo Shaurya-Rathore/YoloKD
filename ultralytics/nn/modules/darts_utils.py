@@ -72,11 +72,17 @@ def _data_transforms_WAID(args):
   if args.cutout:
     train_transform.transforms.append(Cutout(args.cutout_length))
 
-  valid_transform = transforms.Compose([
+  return train_transform
+
+def _val_data_transforms_WAID(args):
+  WAID_MEAN = [0.4804, 0.4807, 0.4805]
+  WAID_STD = [0.1996, 0.1995, 0.1995]
+
+  val_transform = transforms.Compose([
     transforms.ToTensor(),
     transforms.Normalize(WAID_MEAN, WAID_STD),
     ])
-  return train_transform, valid_transform
+  return val_transform
 
 
 def count_parameters_in_MB(model):
@@ -123,5 +129,3 @@ def create_exp_dir(path, scripts_to_save=None):
 Test_Mean = [0.4766, 0.4769, 0.4767]
 Test_Std = [0.1985, 0.1984, 0.1984]
 
-Val_Mean= [0.4804, 0.4807, 0.4805]
-Val_Std=[0.1996, 0.1995, 0.1995]

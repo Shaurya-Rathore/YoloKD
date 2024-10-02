@@ -22,6 +22,8 @@ from dataloader import YOLOtoCustom
 parser = argparse.ArgumentParser("WAID")
 parser.add_argument('--img_dir', type=str, default='/kaggle/input/waiddataset/WAID-main/WAID-main/WAID/images/train', help='location of images')
 parser.add_argument('--label_dir', type=str, default='/kaggle/input/waiddataset/WAID-main/WAID-main/WAID/labels/train', help='location labels')
+parser.add_argument('--val_img_dir', type=str, default='/kaggle/input/waiddataset/WAID-main/WAID-main/WAID/images/valid', help='location of images')
+parser.add_argument('--val_label_dir', type=str, default='/kaggle/input/waiddataset/WAID-main/WAID-main/WAID/labels/valid', help='location labels')
 parser.add_argument('--batch_size', type=int, default=64, help='batch size')
 parser.add_argument('--learning_rate', type=float, default=0.025, help='init learning rate')
 parser.add_argument('--learning_rate_min', type=float, default=0.001, help='min learning rate')
@@ -85,22 +87,18 @@ def main():
       momentum=args.momentum,
       weight_decay=args.weight_decay)
 
-  train_transform, valid_transform = utils._data_transforms_WAID(args)
+  train_transform = utils._data_transforms_WAID(args)
   classes = ['sheep','cattle','seal','camelus','kiang','zebra']
   train_data = YOLOtoCustom(img_dir = args.img_dir,label_dir=args.label_dir,classes = classes,transform=train_transform)
 
-  num_train = len(train_data)
-  indices = list(range(num_train))
-  split = int(np.floor(args.train_portion * num_train))
-
   train_queue = torch.utils.data.DataLoader(
       train_data, batch_size=args.batch_size,
-      sampler=torch.utils.data.sampler.SubsetRandomSampler(indices[:split]),
       pin_memory=True, num_workers=2)
-
+  
+  train_transform = utils._val_data_transforms_WAID(args)
+  valid_data = YOLOtoCustom(img_dir = args.val_img_dir,label_dir=args.val_label_dir,classes = classes,transform=val_transform)
   valid_queue = torch.utils.data.DataLoader(
-      train_data, batch_size=args.batch_size,
-      sampler=torch.utils.data.sampler.SubsetRandomSampler(indices[split:num_train]),
+      valid_data, batch_size=args.batch_size,
       pin_memory=True, num_workers=2)
 
   scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
