@@ -263,18 +263,18 @@ OPS = {
 }
 
 # Test input data (batch_size, channels, height, width)
-input_data = torch.randn(1, 16, 32, 32)
+# input_data = torch.randn(1, 16, 32, 32)
 
-def test_operation(op_name, C_in, stride, affine=True):
-    print(f"\nTesting operation: {op_name}")
-    op = OPS[op_name](C_in, stride, affine)
-    output = op(input_data)
-    print(f"Input shape: {input_data.shape}")
-    print(f"Output shape: {output.shape}")
+# def test_operation(op_name, C_in, stride, affine=True):
+#     print(f"\nTesting operation: {op_name}")
+#     op = OPS[op_name](C_in, stride, affine)
+#     output = op(input_data)
+#     print(f"Input shape: {input_data.shape}")
+#     print(f"Output shape: {output.shape}")
 
-# Test all the operations in the OPS dictionary
-C_in = 16  # Example input channels
-stride = 1
+# # Test all the operations in the OPS dictionary
+# C_in = 16  # Example input channels
+# stride = 1
 
-for op_name in OPS.keys():
-    test_operation(op_name, C_in, stride)
+# for op_name in OPS.keys():
+#     test_operation(op_name, C_in, stride)
