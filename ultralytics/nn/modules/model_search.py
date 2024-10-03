@@ -304,7 +304,7 @@ class DARTSBackbone(nn.Module):
 
 #   def test_output_shape(self):
 #     # Test if the output shape is as expected
-#     input_image = torch.randn(1, 3, 224, 224)
+#     input_image = torch.randn(1, 3, 600, 600)
 #     output = self.backbone(input_image)
 #     # The output shape will depend on how many downsampling operations are applied
 #     # For example, after 6 layers with 2 reduction cells:
