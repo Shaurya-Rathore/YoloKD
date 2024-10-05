@@ -10,10 +10,10 @@ from torch.nn.init import constant_, xavier_uniform_
 
 from ultralytics.nn.modules.tal import TORCH_1_10, dist2bbox, dist2rbox, make_anchors
 
-from .block import DFL, BNContrastiveHead, ContrastiveHead, Proto
-from .conv import Conv
-from .transformer import MLP, DeformableTransformerDecoder, DeformableTransformerDecoderLayer
-from .utils import bias_init_with_prob, linear_init
+from block import DFL, BNContrastiveHead, ContrastiveHead, Proto
+from conv import Conv
+from transformer import MLP, DeformableTransformerDecoder, DeformableTransformerDecoderLayer
+from utils import bias_init_with_prob, linear_init
 
 __all__ = "Detect", "Segment", "Pose", "Classify", "OBB", "RTDETRDecoder", "v10Detect"
 
