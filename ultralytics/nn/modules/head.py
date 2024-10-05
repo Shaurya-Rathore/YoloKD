@@ -612,7 +612,7 @@ class DFL(nn.Module):
 
 # Define number of classes and channels for testing
 nc = 6 # Number of classes
-ch = [256, 512, 1024]  # List of channels for different detection levels
+ch = [128, 256, 512, 1024]  # List of channels for different detection levels
 
 # Instantiate the Detect class
 detect_model = Detect(nc=nc, ch=ch)
