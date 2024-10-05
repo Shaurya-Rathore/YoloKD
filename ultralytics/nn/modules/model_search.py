@@ -2,11 +2,14 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import unittest
+import copy
+from ultralytics.utils.tal import dist2bbox, make_anchors
 from operations import *
 from torch.autograd import Variable
+from .conv import Conv
+from .block import DFL
 from genotypes import PRIMITIVES
 from genotypes import Genotype
-
 
 class MixedOp(nn.Module):
 
@@ -210,7 +213,6 @@ class Network(nn.Module):
     )
     return genotype
 
-
 class DARTSBackbone(nn.Module):
   def __init__(self, C, layers, steps=4, multiplier=4, stem_multiplier=3):
     super(DARTSBackbone, self).__init__()
@@ -235,8 +237,7 @@ class DARTSBackbone(nn.Module):
     reduction_prev = False
     
     for i in range(layers):
-      # Use a reduction cell every few layers to downsample the spatial size
-      if i in [layers // 3, 2 * layers // 3]:
+      if i in [3, 7, 11]:  # Reduction cells at 3rd, 7th, and 11th cells
         C_curr *= 2
         reduction = True
       else:
@@ -247,6 +248,10 @@ class DARTSBackbone(nn.Module):
       
       reduction_prev = reduction
       C_prev_prev, C_prev = C_prev, multiplier * C_curr  # Update for next cell
+      
+    # Initialize feature map placeholders for C3 and C4
+    self.C3 = None  # Refined 150x150 feature map (from after 10th cell)
+    self.C4 = None  # Final 75x75 feature map (from after 14th cell)
     
     # Initialize architecture parameters (alphas)
     self._initialize_alphas()
@@ -269,6 +274,8 @@ class DARTSBackbone(nn.Module):
 
   def forward(self, x):
     s0 = s1 = self.stem(x)
+    C3, C4 = None, None
+    
     print(f"Stem output shape: {s1.shape}")
     
     for i, cell in enumerate(self.cells):
@@ -284,9 +291,15 @@ class DARTSBackbone(nn.Module):
       
       # Perform the forward pass through the cell
       s0, s1 = s1, cell(s0, s1, weights)
+      
+      # Capture feature maps for C3 (after the 10th cell) and C4 (final output)
+      if i == 10:
+        C3 = s1  # Output just before the third reduction cell (150x150)
+      elif i == 13:  # After the final 14th cell
+        C4 = s1  # Final refined feature map (75x75)
     
     print(f"Final output shape: {s1.shape}")
-    return s1  # Final feature map from the backbone
+    return [C3, C4], s1  # Final feature map from the backbone
   
   
 # class TestDARTSBackbone(unittest.TestCase):
@@ -353,67 +366,254 @@ class Neck(nn.Module):
     # Final convolution to fuse the scales
     self.conv_fuse = nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1)
 
-def forward(self, C3, C4):
-  """
-  Forward pass for the dual-scale neck.
-  
-  Args:
-    C3 (Tensor): The highest resolution feature map from the backbone.
-    C4 (Tensor): The second-highest resolution feature map from the backbone.
-  
-  Returns:
-    Tensor: The fused feature map ready for the detection head.
-  """
-  # Process both scales
-  P3 = self.conv1_C3(C3)
-  P4 = self.conv1_C4(C4)
-
-  # Upsample P4 and add it to P3
-  P4 = self.upsample(P4)
-  fused = P3 + P4  # Fusion of two scales
-
-  # Final convolution
-  fused = self.conv_fuse(fused)
-  return fused
-
-class DetectionHead(nn.Module):
-  def __init__(self, num_classes, in_channels, num_anchors=3):
+  def forward(self, C3, C4):
     """
-    Initializes the detection head, which outputs bounding box coordinates, objectness scores, and class probabilities.
+    Forward pass for the dual-scale neck.
     
     Args:
-      num_classes (int): Number of classes in the dataset.
-      in_channels (int): Number of input channels from the neck.
-      num_anchors (int): Number of anchor boxes per grid cell (default: 3).
+      C3 (Tensor): The highest resolution feature map from the backbone.
+      C4 (Tensor): The second-highest resolution feature map from the backbone.
+    
+    Returns:
+      Tensor: The fused feature map ready for the detection head.
     """
-    super(DetectionHead, self).__init__()
+    # Process both scales
+    P3 = self.conv1_C3(C3)
+    P4 = self.conv1_C4(C4)
 
-    # Number of output features for bounding box regression (x, y, w, h)
-    self.bbox_pred = nn.Conv2d(in_channels, num_anchors * 4, kernel_size=1)
+    # Upsample P4 and add it to P3
+    P4 = self.upsample(P4)
+    fused = P3 + P4  # Fusion of two scales
 
-    # Number of output features for objectness score
-    self.obj_pred = nn.Conv2d(in_channels, num_anchors * 1, kernel_size=1)
+    # Final convolution
+    fused = self.conv_fuse(fused)
+    return fused
 
-    # Number of output features for class scores (num_classes)
-    self.cls_pred = nn.Conv2d(in_channels, num_anchors * num_classes, kernel_size=1)
+class Detect(nn.Module):
+  """YOLOv8 Detect head for detection models."""
+
+  dynamic = False  # force grid reconstruction
+  export = False  # export mode
+  end2end = False  # end2end
+  max_det = 300  # max_det
+  shape = None
+  anchors = torch.empty(0)  # init
+  strides = torch.empty(0)  # init
+
+  def __init__(self, nc=80, ch=()):
+    """Initializes the YOLOv8 detection layer with specified number of classes and channels."""
+    super().__init__()
+    self.nc = nc  # number of classes
+    self.nl = len(ch)  # number of detection layers
+    self.reg_max = 16  # DFL channels (ch[0] // 16 to scale 4/8/12/16/20 for n/s/m/l/x)
+    self.no = nc + self.reg_max * 4  # number of outputs per anchor
+    self.stride = torch.zeros(self.nl)  # strides computed during build
+    c2, c3 = max((16, ch[0] // 4, self.reg_max * 4)), max(ch[0], min(self.nc, 100))  # channels
+    self.cv2 = nn.ModuleList(
+        nn.Sequential(Conv(x, c2, 3), Conv(c2, c2, 3), nn.Conv2d(c2, 4 * self.reg_max, 1)) for x in ch
+    )
+    self.cv3 = nn.ModuleList(nn.Sequential(Conv(x, c3, 3), Conv(c3, c3, 3), nn.Conv2d(c3, self.nc, 1)) for x in ch)
+    self.dfl = DFL(self.reg_max) if self.reg_max > 1 else nn.Identity()
+
+    if self.end2end:
+        self.one2one_cv2 = copy.deepcopy(self.cv2)
+        self.one2one_cv3 = copy.deepcopy(self.cv3)
+
+  def forward(self, x):
+    """Concatenates and returns predicted bounding boxes and class probabilities."""
+    if self.end2end:
+      return self.forward_end2end(x)
+
+    for i in range(self.nl):
+      x[i] = torch.cat((self.cv2[i](x[i]), self.cv3[i](x[i])), 1)
+    if self.training:  # Training path
+      return x
+    y = self._inference(x)
+    
+    return y if self.export else (y, x)
+
+  def forward_end2end(self, x):
+    """
+    Performs forward pass of the v10Detect module.
+
+    Args:
+      x (tensor): Input tensor.
+
+    Returns:
+      (dict, tensor): If not in training mode, returns a dictionary containing the outputs of both one2many and one2one detections.
+                      If in training mode, returns a dictionary containing the outputs of one2many and one2one detections separately.
+    """
+    x_detach = [xi.detach() for xi in x]
+    one2one = [
+      torch.cat((self.one2one_cv2[i](x_detach[i]), self.one2one_cv3[i](x_detach[i])), 1) for i in range(self.nl)
+    ]
+    for i in range(self.nl):
+      x[i] = torch.cat((self.cv2[i](x[i]), self.cv3[i](x[i])), 1)
+    if self.training:  # Training path
+        return {"one2many": x, "one2one": one2one}
+
+    y = self._inference(one2one)
+    y = self.postprocess(y.permute(0, 2, 1), self.max_det, self.nc)
+    return y if self.export else (y, {"one2many": x, "one2one": one2one})
+
+  def _inference(self, x):
+      """Decode predicted bounding boxes and class probabilities based on multiple-level feature maps."""
+      # Inference path
+      shape = x[0].shape  # BCHW
+      x_cat = torch.cat([xi.view(shape[0], self.no, -1) for xi in x], 2)
+      if self.dynamic or self.shape != shape:
+        self.anchors, self.strides = (x.transpose(0, 1) for x in make_anchors(x, self.stride, 0.5))
+        self.shape = shape
+
+      if self.export and self.format in {"saved_model", "pb", "tflite", "edgetpu", "tfjs"}:  # avoid TF FlexSplitV ops
+        box = x_cat[:, : self.reg_max * 4]
+        cls = x_cat[:, self.reg_max * 4 :]
+      else:
+        box, cls = x_cat.split((self.reg_max * 4, self.nc), 1)
+
+      if self.export and self.format in {"tflite", "edgetpu"}:
+        # Precompute normalization factor to increase numerical stability
+        # See https://github.com/ultralytics/ultralytics/issues/7371
+        grid_h = shape[2]
+        grid_w = shape[3]
+        grid_size = torch.tensor([grid_w, grid_h, grid_w, grid_h], device=box.device).reshape(1, 4, 1)
+        norm = self.strides / (self.stride[0] * grid_size)
+        dbox = self.decode_bboxes(self.dfl(box) * norm, self.anchors.unsqueeze(0) * norm[:, :2])
+      else:
+          dbox = self.decode_bboxes(self.dfl(box), self.anchors.unsqueeze(0)) * self.strides
+
+      return torch.cat((dbox, cls.sigmoid()), 1)
+
+  def bias_init(self):
+      """Initialize Detect() biases, WARNING: requires stride availability."""
+      m = self  # self.model[-1]  # Detect() module
+      # cf = torch.bincount(torch.tensor(np.concatenate(dataset.labels, 0)[:, 0]).long(), minlength=nc) + 1
+      # ncf = math.log(0.6 / (m.nc - 0.999999)) if cf is None else torch.log(cf / cf.sum())  # nominal class frequency
+      for a, b, s in zip(m.cv2, m.cv3, m.stride):  # from
+          a[-1].bias.data[:] = 1.0  # box
+          b[-1].bias.data[: m.nc] = math.log(5 / m.nc / (640 / s) ** 2)  # cls (.01 objects, 80 classes, 640 img)
+      if self.end2end:
+          for a, b, s in zip(m.one2one_cv2, m.one2one_cv3, m.stride):  # from
+              a[-1].bias.data[:] = 1.0  # box
+              b[-1].bias.data[: m.nc] = math.log(5 / m.nc / (640 / s) ** 2)  # cls (.01 objects, 80 classes, 640 img)
+
+  def decode_bboxes(self, bboxes, anchors):
+    """Decode bounding boxes."""
+    return dist2bbox(bboxes, anchors, xywh=not self.end2end, dim=1)
+
+  @staticmethod
+  def postprocess(preds: torch.Tensor, max_det: int, nc: int = 80):
+      """
+      Post-processes YOLO model predictions.
+
+      Args:
+          preds (torch.Tensor): Raw predictions with shape (batch_size, num_anchors, 4 + nc) with last dimension
+              format [x, y, w, h, class_probs].
+          max_det (int): Maximum detections per image.
+          nc (int, optional): Number of classes. Default: 80.
+
+      Returns:
+          (torch.Tensor): Processed predictions with shape (batch_size, min(max_det, num_anchors), 6) and last
+            dimension format [x, y, w, h, max_class_prob, class_index].
+      """
+      
+      batch_size, anchors, predictions = preds.shape  # i.e. shape(16,8400,84)
+      boxes, scores = preds.split([4, nc], dim=-1)
+      index = scores.amax(dim=-1).topk(min(max_det, anchors))[1].unsqueeze(-1)
+      boxes = boxes.gather(dim=1, index=index.repeat(1, 1, 4))
+      scores = scores.gather(dim=1, index=index.repeat(1, 1, nc))
+      scores, index = scores.flatten(1).topk(max_det)
+      i = torch.arange(batch_size)[..., None]  # batch indices
+      return torch.cat([boxes[i, index // nc], scores[..., None], (index % nc)[..., None].float()], dim=-1)
+    
+
+class YOLOv8StudentModel(nn.Module):
+  def __init__(self, num_classes, C=64, layers=14, steps=4, multiplier=4, stem_multiplier=3):
+    """
+    YOLOv8 Student Model with DARTS backbone, Neck, and YOLOv8 Detection Head.
+    
+    Args:
+        num_classes (int): Number of object classes.
+        C (int): Initial number of channels for the backbone.
+        layers (int): Total number of cells in the backbone (14 cells here).
+        steps (int): Number of steps per DARTS cell.
+        multiplier (int): Multiplier for channels in DARTS cells.
+        stem_multiplier (int): Multiplier for channels in the stem layer.
+    """
+    super(YOLOv8StudentModel, self).__init__()
+    
+    # DARTS-based backbone with 14 layers (3 reduction cells)
+    self.backbone = DARTSBackbone(C=C, layers=layers, steps=steps, multiplier=multiplier, stem_multiplier=stem_multiplier)
+    
+    # Example: The channels from the backbone after feature extraction
+    # Assuming C3 and C4 feature maps from backbone
+    backbone_out_channels = [C * multiplier * 4, C * multiplier * 8]  # Example for C3 and C4
+
+    # Neck that fuses multi-scale feature maps
+    self.neck = Neck(in_channels_list=backbone_out_channels, out_channels=256)  # Assuming output to be 256 channels
+    
+    # Detection head for predicting bounding boxes, objectness scores, and class probabilities
+    self.detect_head = Detect(num_classes=num_classes, ch=[256])  # Input channels are 256 from the neck
 
   def forward(self, x):
     """
-    Forward pass for the detection head.
+    Forward pass through the student model.
     
     Args:
-        x (Tensor): Feature map output from the neck.
+        x (Tensor): Input image tensor (batch, channels, height, width).
     
     Returns:
-        Tuple: (bounding box predictions, objectness predictions, class predictions)
+        Tuple: Bounding box predictions, objectness scores, class predictions.
     """
-    # Predict bounding boxes (x, y, w, h)
-    bbox_preds = self.bbox_pred(x)
-
-    # Predict objectness scores
-    obj_preds = self.obj_pred(x)
-
-    # Predict class probabilities
-    cls_preds = self.cls_pred(x)
-
+    # Step 1: Forward pass through DARTS backbone (multi-scale feature maps)
+    features = self.backbone(x)
+    
+    # Assuming the backbone returns two feature maps (C3 and C4)
+    C3, C4 = features[0], features[1]  # Take feature maps for fusion
+    
+    # Step 2: Pass feature maps through the neck for multi-scale fusion
+    fused_features = self.neck(C3, C4)
+    
+    # Step 3: Predict bounding boxes, objectness, and class scores
+    bbox_preds, obj_preds, cls_preds = self.detect_head(fused_features)
+    
     return bbox_preds, obj_preds, cls_preds
+  
+class TestDetectHead(unittest.TestCase):
+    def setUp(self):
+        # Initialize the Detection Head with the number of object classes and input channels from the neck
+        self.num_classes = 10  # Example number of object classes
+        self.in_channels = 256  # Example input channels from the Neck
+        self.detect_head = Detect(num_classes=self.num_classes, ch=[self.in_channels])
+        
+        # Example input feature map from the Neck
+        self.neck_output = torch.randn(1, self.in_channels, 150, 150)  # Example Neck output (1, 256, 150, 150)
+
+    def test_forward_pass(self):
+        # Test the forward pass of the Detection Head to ensure it runs without errors
+        try:
+            bbox_preds, obj_preds, cls_preds = self.detect_head(self.neck_output)
+        except Exception as e:
+            self.fail(f"Forward pass failed with error: {e}")
+        
+        # Check that the outputs are tensors
+        self.assertIsInstance(bbox_preds, torch.Tensor, "Bounding box predictions are not a tensor")
+        self.assertIsInstance(obj_preds, torch.Tensor, "Objectness predictions are not a tensor")
+        self.assertIsInstance(cls_preds, torch.Tensor, "Class predictions are not a tensor")
+
+    def test_output_shapes(self):
+        # Forward pass through the Detection Head
+        bbox_preds, obj_preds, cls_preds = self.detect_head(self.neck_output)
+        
+        # Assuming the head outputs predictions at each pixel location (e.g., 150x150 spatial resolution)
+        expected_bbox_shape = (1, 4, 150, 150)  # Bounding boxes (4 coords per pixel)
+        expected_obj_shape = (1, 1, 150, 150)   # Objectness score (1 per pixel)
+        expected_cls_shape = (1, self.num_classes, 150, 150)  # Class probabilities (10 classes per pixel)
+        
+        # Check the output shapes
+        self.assertEqual(bbox_preds.shape, expected_bbox_shape, f"Expected bounding box shape {expected_bbox_shape}, but got {bbox_preds.shape}")
+        self.assertEqual(obj_preds.shape, expected_obj_shape, f"Expected objectness score shape {expected_obj_shape}, but got {obj_preds.shape}")
+        self.assertEqual(cls_preds.shape, expected_cls_shape, f"Expected class prediction shape {expected_cls_shape}, but got {cls_preds.shape}")
+
+if __name__ == '__main__':
+    unittest.main()
