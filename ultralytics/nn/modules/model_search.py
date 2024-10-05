@@ -554,7 +554,7 @@ class YOLOv8StudentModel(nn.Module):
     self.neck = Neck(in_channels_list=backbone_out_channels, out_channels=256)  # Assuming output to be 256 channels
     
     # Detection head for predicting bounding boxes, objectness scores, and class probabilities
-    self.detect_head = Detect(num_classes=num_classes, ch=[256])  # Input channels are 256 from the neck
+    self.detect_head = Detect(nc=num_classes, ch=[256])  # Input channels are 256 from the neck
 
   def forward(self, x):
     """
@@ -585,10 +585,10 @@ class TestDetectHead(unittest.TestCase):
         # Initialize the Detection Head with the number of object classes and input channels from the neck
         self.num_classes = 10  # Example number of object classes
         self.in_channels = 256  # Example input channels from the Neck
-        self.detect_head = Detect(num_classes=self.num_classes, ch=[self.in_channels])
+        self.detect_head = Detect(nc=self.num_classes, ch=[self.in_channels])
         
         # Example input feature map from the Neck
-        self.neck_output = torch.randn(1, self.in_channels, 150, 150)  # Example Neck output (1, 256, 150, 150)
+        self.neck_output = torch.randn(1, 256, 150, 150)  # Example Neck output (1, 256, 150, 150)
 
     def test_forward_pass(self):
         # Test the forward pass of the Detection Head to ensure it runs without errors
