@@ -610,7 +610,6 @@ class DFL(nn.Module):
     def forward(self, x):
         return self.fc(x)
 
-# Assuming Detect, Conv, and DFL classes are already defined as provided in the script
 # Define number of classes and channels for testing
 nc = 80  # Number of classes
 ch = [256, 512, 1024]  # List of channels for different detection levels
@@ -618,22 +617,10 @@ ch = [256, 512, 1024]  # List of channels for different detection levels
 # Instantiate the Detect class
 detect_model = Detect(nc=nc, ch=ch)
 
-# Modify the forward function of Detect for torchsummary compatibility
-def forward_for_summary(self, x):
-    if isinstance(x, torch.Tensor):
-        # If a single input tensor is provided, split it into separate levels based on channel sizes
-        x = [x for _ in range(self.nl)]
-    return self.forward(x)
-
-# Replace original forward with modified one
-detect_model.forward = forward_for_summary.__get__(detect_model, Detect)
-
 # Move model to the appropriate device (CPU in this case)
 device = torch.device("cpu")
 detect_model.to(device)
 
-# Print summary of the model to see the number of parameters
-# Use a dummy input size for each detection level
-input_size = (256, 150, 150)  # Single feature map size for summary compatibility
-summary(detect_model, input_size=input_size, device=str(device))
-summary(detect_model, input_size=input_size, device=str(device))
+# Print the number of parameters
+total_params = sum(p.numel() for p in detect_model.parameters() if p.requires_grad)
+print(f"Total trainable parameters in the Detect model: {total_params}")
