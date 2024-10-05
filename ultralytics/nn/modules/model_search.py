@@ -3,11 +3,11 @@ import torch.nn as nn
 import torch.nn.functional as F
 import unittest
 import copy
-from ultralytics.utils.tal import dist2bbox, make_anchors
+from .ultralytics.utils.tal import dist2bbox, make_anchors
 from operations import *
 from torch.autograd import Variable
-from ultralytics.nn.modules.conv import Conv
-from ultralytics.nn.modules.block import DFL
+from .ultralytics.nn.modules.conv import Conv
+from .ultralytics.nn.modules.block import DFL
 from genotypes import PRIMITIVES
 from genotypes import Genotype
 
