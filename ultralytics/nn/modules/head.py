@@ -617,6 +617,18 @@ ch = [256, 512, 1024]  # List of channels for different detection levels
 # Instantiate the Detect class
 detect_model = Detect(nc=nc, ch=ch)
 
+# Modify the forward function of Detect for torchsummary compatibility
+def forward_for_summary(self, *args):
+    if len(args) == 1 and isinstance(args[0], torch.Tensor):
+        # If a single input tensor is provided, split it into separate levels
+        x = [args[0] for _ in range(self.nl)]
+    else:
+        x = list(args)
+    return self.forward(x)
+
+# Replace original forward with modified one
+detect_model.forward = forward_for_summary.__get__(detect_model, Detect)
+
 # Move model to the appropriate device (CPU in this case)
 device = torch.device("cpu")
 detect_model.to(device)
