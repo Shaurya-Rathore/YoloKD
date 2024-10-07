@@ -3,6 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import unittest
 import copy
+import gc
 # from ultralytics.utils.tal import dist2bbox, make_anchors
 # from ultralytics.nn.modules.conv import Conv
 # from ultralytics.nn.modules.block import DFL
@@ -607,11 +608,15 @@ def profile_memory(model, input_tensor):
     # Forward pass and profiling memory usage
     print("\n--- Memory Profiling for Forward Pass ---")
     torch.cuda.reset_peak_memory_stats(device)
+    gc.collect()
+    torch.cuda.empty_cache()
     with torch.no_grad():
         output = model(input_tensor)  # Forward pass
     peak_memory_forward = torch.cuda.max_memory_allocated(device)
     print(f"Peak Memory Usage during Forward Pass: {peak_memory_forward / 1e6:.2f} MB")
-
+    del output
+    gc.collect()
+    torch.cuda.empty_cache()
     # Enable gradient computation and do a backward pass for more profiling
     model.train()  # Set model to training mode
     input_tensor.requires_grad_(True)
@@ -620,13 +625,17 @@ def profile_memory(model, input_tensor):
     # Perform a forward pass, compute a dummy loss, and backward pass to profile memory
     print("\n--- Memory Profiling for Backward Pass ---")
     torch.cuda.reset_peak_memory_stats(device)
+    gc.collect()
+    torch.cuda.empty_cache()
     output = model(input_tensor)  # Forward pass
     dummy_target = torch.randn_like(output[0]).to(device)  # Creating a target tensor for loss calculation
     loss = criterion(output[0], dummy_target)  # Dummy loss
     loss.backward()  # Backward pass
     peak_memory_backward = torch.cuda.max_memory_allocated(device)
     print(f"Peak Memory Usage during Backward Pass: {peak_memory_backward / 1e6:.2f} MB")
-
+    del output,dummy_target,loss
+    gc.collect()
+    torch.cuda.empty_cache()
     # Print a memory summary report
     print("\n--- Memory Summary Report ---")
     print(torch.cuda.memory_summary(device))
