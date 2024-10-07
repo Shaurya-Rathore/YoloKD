@@ -115,9 +115,9 @@ class MixedOp(nn.Module):
       if out.size()[2:] != input_size:
         # print(f"Resampling output of operation {idx} ({PRIMITIVES[idx]}) from {out.size()[2:]} to {input_size}")
         out = F.interpolate(out, size=input_size, mode='bilinear', align_corners=True)
-      
+      gc.collect()
+      torch.cuda.empty_cache()
       result += w * out
-
     return result
 
 class StemLayer(nn.Module):
