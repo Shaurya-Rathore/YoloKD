@@ -4,21 +4,26 @@ import time
 import glob
 import numpy as np
 import torch
-import darts_utils
+from ultralytics.nn.modules.darts_utils import darts_utils
 import logging
 import argparse
 import torch.nn as nn
-import genotypes
+import ultralytics.nn.modules.genotypes
 import torch.utils
 import torchvision.datasets as dset
 import torch.backends.cudnn as cudnn
-from dataloader import YOLOtoCustom
+from ultralytics.nn.modules.dataloader import YOLOObjectDetectionDataset
 from ultralytics import YOLO
 from ultralytics.utils.loss import DFLoss, BboxLoss
 import wandb
 from kdtry1 import soft_target
 from torch.autograd import Variable
-from model import DARTSModel as Network
+from ultralytics.nn.modules.model import DARTSModel as Network
+
+def forward_hook(module, input, output):
+    # Output is the result from the Detect head
+    # You can process the output here if needed
+    module.logits = output
 
 # Argument Parsing
 parser = argparse.ArgumentParser("WAID")
@@ -52,6 +57,8 @@ args = parser.parse_args()
 
 # Initialize the teacher model
 teacher = YOLO('yolov8-LDconv.yaml')
+detect_head = teacher.detect
+detect_head.register_forward_hook(forward_hook)
 teacher.load_state_dict(torch.load('/YoloKD/yolowts.pt'))
 
 # Experiment setup
@@ -112,10 +119,10 @@ def main():
     criterion = YOLOLoss().cuda()
     optimizer = torch.optim.SGD(model.parameters(), lr=args.learning_rate, momentum=args.momentum, weight_decay=args.weight_decay)
 
-    train_data = YOLOtoCustom(img_dir=args.img_dir, label_dir=args.label_dir, classes=['sheep', 'cattle', 'seal', 'camelus', 'kiang', 'zebra'], transform=darts_utils.train_transform)
+    train_data = YOLOObjectDetectionDataset(img_dir=args.img_dir, label_dir=args.label_dir, classes=['sheep', 'cattle', 'seal', 'camelus', 'kiang', 'zebra'], transform=darts_utils.train_transform)
     train_queue = torch.utils.data.DataLoader(train_data, batch_size=args.batch_size, pin_memory=True, num_workers=2)
 
-    valid_data = YOLOtoCustom(img_dir=args.val_img_dir, label_dir=args.val_label_dir, classes=['sheep', 'cattle', 'seal', 'camelus', 'kiang', 'zebra'], transform=darts_utils._val_data_transforms_WAID(args))
+    valid_data = YOLOObjectDetectionDataset(img_dir=args.val_img_dir, label_dir=args.val_label_dir, classes=['sheep', 'cattle', 'seal', 'camelus', 'kiang', 'zebra'], transform=darts_utils._val_data_transforms_WAID(args))
     valid_queue = torch.utils.data.DataLoader(valid_data, batch_size=args.batch_size, pin_memory=True, num_workers=2)
 
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, float(args.epochs))
