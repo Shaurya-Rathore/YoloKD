@@ -13,7 +13,7 @@ from ultralytics.utils.tal import TORCH_1_10, dist2bbox, dist2rbox, make_anchors
 from ultralytics.nn.modules.block import DFL, BNContrastiveHead, ContrastiveHead, Proto
 from ultralytics.nn.modules.conv import Conv
 from ultralytics.nn.modules.transformer import MLP, DeformableTransformerDecoder, DeformableTransformerDecoderLayer
-from utils import bias_init_with_prob, linear_init
+from ultralytics.nn.modules.utils import bias_init_with_prob, linear_init
 
 __all__ = "Detect", "Segment", "Pose", "Classify", "OBB", "RTDETRDecoder", "v10Detect"
 

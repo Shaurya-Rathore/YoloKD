@@ -1,8 +1,8 @@
 import torch
 import torch.nn as nn
-from operations import *
+from ultralytics.nn.modules.operations import *
 from torch.autograd import Variable
-from utils import drop_path
+from ultralytics.nn.modules.darts_utils import drop_path
 
 
 class Cell(nn.Module):

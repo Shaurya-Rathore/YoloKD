@@ -21,11 +21,10 @@ from torch.autograd import Variable
 
 wandb.init(mode='disabled')
 
-outputs = []
-
 def forward_hook(module, input, output):
-    # Capture the output from the layer
-    outputs.append(output)
+    # Output is the result from the Detect head
+    # You can process the output here if needed
+    module.logits = output
 
 # Argument Parsing
 parser = argparse.ArgumentParser("WAID")
@@ -58,19 +57,13 @@ parser.add_argument('--temperature', type=float, default=3.0, help='temperature 
 args = parser.parse_args()
 
 # Initialize the teacher model
-teacher = YOLO('yolov8m.yaml')
-teacher.to(device='cuda')
-# for name, layer in teacher.named_modules():
-#     print(name, layer)
+teacher = YOLO('yolov8-LDconv.yaml')
+for name, layer in teacher.named_modules():
+    print(name, layer)
 layer = getattr(teacher.model.model, '22').cv3[2][1].conv
 hook_handle = layer.register_forward_hook(forward_hook)
 #teacher.load_state_dict(torch.load('/YoloKD/yolowts.pt'))
-img_path = "C:\\Users\\Shaurya\\Pictures\\aadhaar page 1.jpg"
-with torch.no_grad():  # No gradient computation is needed
-    output = teacher("/kaggle/input/waiddataset/WAID-main/WAID-main/WAID/data.yaml")
 
-print("Final Output:", output)  # This is the model's output
-print("Captured Output from the Hook:", outputs[-1])
 # Experiment setup
 args.save = 'eval-{}-{}'.format(args.save, time.strftime("%Y%m%d-%H%M%S"))
 ultralytics.nn.modules.darts_utils.create_exp_dir(args.save, scripts_to_save=glob.glob('*.py'))
