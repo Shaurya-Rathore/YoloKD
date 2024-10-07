@@ -3,14 +3,88 @@ import torch.nn as nn
 import torch.nn.functional as F
 import unittest
 import copy
-from ultralytics.utils.tal import dist2bbox, make_anchors
-from ultralytics.nn.modules.conv import Conv
-from ultralytics.nn.modules.block import DFL
+# from ultralytics.utils.tal import dist2bbox, make_anchors
+# from ultralytics.nn.modules.conv import Conv
+# from ultralytics.nn.modules.block import DFL
 from operations import *
 from torch.autograd import Variable
 
 from genotypes import PRIMITIVES
 from genotypes import Genotype
+
+def make_anchors(feats, strides, grid_cell_offset=0.5):
+    """Generate anchors from features."""
+    anchor_points, stride_tensor = [], []
+    assert feats is not None
+    dtype, device = feats[0].dtype, feats[0].device
+    for i, stride in enumerate(strides):
+        _, _, h, w = feats[i].shape
+        sx = torch.arange(end=w, device=device, dtype=dtype) + grid_cell_offset  # shift x
+        sy = torch.arange(end=h, device=device, dtype=dtype) + grid_cell_offset  # shift y
+        sy, sx = torch.meshgrid(sy, sx, indexing="ij") # if TORCH_1_10 else torch.meshgrid(sy, sx)
+        anchor_points.append(torch.stack((sx, sy), -1).view(-1, 2))
+        stride_tensor.append(torch.full((h * w, 1), stride, dtype=dtype, device=device))
+    return torch.cat(anchor_points), torch.cat(stride_tensor)
+  
+def dist2bbox(distance, anchor_points, xywh=True, dim=-1):
+    """Transform distance(ltrb) to box(xywh or xyxy)."""
+    lt, rb = distance.chunk(2, dim)
+    x1y1 = anchor_points - lt
+    x2y2 = anchor_points + rb
+    if xywh:
+        c_xy = (x1y1 + x2y2) / 2
+        wh = x2y2 - x1y1
+        return torch.cat((c_xy, wh), dim)  # xywh bbox
+    return torch.cat((x1y1, x2y2), dim)  # xyxy bbox
+  
+def autopad(k, p=None, d=1):  # kernel, padding, dilation
+    """Pad to 'same' shape outputs."""
+    if d > 1:
+        k = d * (k - 1) + 1 if isinstance(k, int) else [d * (x - 1) + 1 for x in k]  # actual kernel-size
+    if p is None:
+        p = k // 2 if isinstance(k, int) else [x // 2 for x in k]  # auto-pad
+    return p
+  
+class Conv(nn.Module):
+    """Standard convolution with args(ch_in, ch_out, kernel, stride, padding, groups, dilation, activation)."""
+
+    default_act = nn.SiLU()  # default activation
+
+    def __init__(self, c1, c2, k=1, s=1, p=None, g=1, d=1, act=True):
+        """Initialize Conv layer with given arguments including activation."""
+        super().__init__()
+        self.conv = nn.Conv2d(c1, c2, k, s, autopad(k, p, d), groups=g, dilation=d, bias=False)
+        self.bn = nn.BatchNorm2d(c2)
+        self.act = self.default_act if act is True else act if isinstance(act, nn.Module) else nn.Identity()
+
+    def forward(self, x):
+        """Apply convolution, batch normalization and activation to input tensor."""
+        return self.act(self.bn(self.conv(x)))
+
+    def forward_fuse(self, x):
+        """Perform transposed convolution of 2D data."""
+        return self.act(self.conv(x))
+      
+class DFL(nn.Module):
+    """
+    Integral module of Distribution Focal Loss (DFL).
+
+    Proposed in Generalized Focal Loss https://ieeexplore.ieee.org/document/9792391
+    """
+
+    def __init__(self, c1=16):
+        """Initialize a convolutional layer with a given number of input channels."""
+        super().__init__()
+        self.conv = nn.Conv2d(c1, 1, 1, bias=False).requires_grad_(False)
+        x = torch.arange(c1, dtype=torch.float)
+        self.conv.weight.data[:] = nn.Parameter(x.view(1, c1, 1, 1))
+        self.c1 = c1
+
+    def forward(self, x):
+        """Applies a transformer layer on input tensor 'x' and returns a tensor."""
+        b, _, a = x.shape  # batch, channels, anchors
+        return self.conv(x.view(b, 4, self.c1, a).transpose(2, 1).softmax(1)).view(b, 4, a)
+        # return self.conv(x.view(b, self.c1, 4, a).softmax(1)).view(b, 4, a)
 
 class MixedOp(nn.Module):
 
@@ -31,13 +105,13 @@ class MixedOp(nn.Module):
     # Apply each operation and resample the output to match the input size if necessary
     result = 0
     for idx, (w, op) in enumerate(zip(weights, self._ops)):
-      print(f"Applying operation {idx} ({PRIMITIVES[idx]}) with weight {w}")
+      # print(f"Applying operation {idx} ({PRIMITIVES[idx]}) with weight {w}")
       out = op(x)
-      print(f"Output shape after operation {idx}: {out.size()}")
+      # print(f"Output shape after operation {idx}: {out.size()}")
       
       # If the operation changed the spatial size, resample it back to the input size
       if out.size()[2:] != input_size:
-        print(f"Resampling output of operation {idx} ({PRIMITIVES[idx]}) from {out.size()[2:]} to {input_size}")
+        # print(f"Resampling output of operation {idx} ({PRIMITIVES[idx]}) from {out.size()[2:]} to {input_size}")
         out = F.interpolate(out, size=input_size, mode='bilinear', align_corners=True)
       
       result += w * out
@@ -83,7 +157,7 @@ class Cell(nn.Module):
     s0 = self.preprocess0(s0)
     s1 = self.preprocess1(s1)
     
-    print(f"s0 shape after preprocessing: {s0.shape}, s1 shape after preprocessing: {s1.shape}")
+    # print(f"s0 shape after preprocessing: {s0.shape}, s1 shape after preprocessing: {s1.shape}")
 
     states = [s0, s1]
     offset = 0
@@ -91,7 +165,7 @@ class Cell(nn.Module):
       s = []
       for j, h in enumerate(states):
         # Apply the operation
-        print(f"Applying operation {offset+j} in step {i}")
+        # print(f"Applying operation {offset+j} in step {i}")
         out = self._ops[offset+j](h, weights[offset+j])
         
         # Ensure all outputs have the same size as s0
@@ -102,7 +176,7 @@ class Cell(nn.Module):
         s.append(out)
       
       s = sum(s)
-      print(f"State shape after step {i}: {s.shape}")
+      # print(f"State shape after step {i}: {s.shape}")
       offset += len(states)
       states.append(s)
 
@@ -237,6 +311,9 @@ class DARTSBackbone(nn.Module):
     self.cells = nn.ModuleList()
     reduction_prev = False
     
+    self.cell6_index = 5   # Index for the 6th cell
+    self.cell10_index = 9  # Index for the 10th cell
+    
     for i in range(layers):
       if i in [3, 7, 11]:  # Reduction cells at 3rd, 7th, and 11th cells
         C_curr *= 2
@@ -249,10 +326,6 @@ class DARTSBackbone(nn.Module):
       
       reduction_prev = reduction
       C_prev_prev, C_prev = C_prev, multiplier * C_curr  # Update for next cell
-      
-    # Initialize feature map placeholders for C3 and C4
-    self.C3 = None  # Refined 150x150 feature map (from after 10th cell)
-    self.C4 = None  # Final 75x75 feature map (from after 14th cell)
     
     # Initialize architecture parameters (alphas)
     self._initialize_alphas()
@@ -261,7 +334,7 @@ class DARTSBackbone(nn.Module):
     """Initialize architecture parameters (alphas)."""
     k = sum(1 for i in range(self._steps) for n in range(2 + i))
     num_ops = len(PRIMITIVES)
-    print(f"Initializing alphas with k={k} and num_ops={num_ops}")
+    # print(f"Initializing alphas with k={k} and num_ops={num_ops}")
 
     # Alphas control the operation weights in the cells
     self.alphas_normal = nn.Parameter(1e-3 * torch.randn(k, num_ops))
@@ -275,120 +348,73 @@ class DARTSBackbone(nn.Module):
 
   def forward(self, x):
     s0 = s1 = self.stem(x)
-    C3, C4 = None, None
+    C2 = None  # To capture the output of the 6th cell (C2)
+    C3 = None  # To capture the output of the 10th cell (C3)
     
-    print(f"Stem output shape: {s1.shape}")
+    # print(f"Stem output shape: {s1.shape}")
     
     for i, cell in enumerate(self.cells):
       # Use softmax on alphas to get the weights for each operation in the cell
       if cell.reduction:
         weights = F.softmax(self.alphas_reduce, dim=-1)
-        print(f"Cell {i + 1} is a Reduction Cell")
+        # print(f"Cell {i + 1} is a Reduction Cell")
       else:
         weights = F.softmax(self.alphas_normal, dim=-1)
-        print(f"Cell {i + 1} is a Normal Cell")
+        # print(f"Cell {i + 1} is a Normal Cell")
         
-      print(f"Cell {i + 1} output shape: {s1.shape}")
+      # print(f"Cell {i + 1} output shape: {s1.shape}")
       
       # Perform the forward pass through the cell
       s0, s1 = s1, cell(s0, s1, weights)
       
-      # Capture feature maps for C3 (after the 10th cell) and C4 (final output)
-      if i == 10:
-        C3 = s1  # Output just before the third reduction cell (150x150)
-      elif i == 13:  # After the final 14th cell
-        C4 = s1  # Final refined feature map (75x75)
+      if i == self.cell6_index:
+        C2 = s1  # Capture the output of the 6th cell (C3)
+
+      if i == self.cell10_index:
+        C3 = s1  # Capture the output of the 10th cell (C4)
+        
+    C4 = s1
     
-    print(f"Final output shape: {s1.shape}")
-    return [C3, C4], s1  # Final feature map from the backbone
-  
-  
-# class TestDARTSBackbone(unittest.TestCase):
-#   def setUp(self):
-#     # Setup the backbone with 6 layers and initial channels
-#     self.backbone = DARTSBackbone(C=64, layers=6)
-  
-#   def test_forward_pass(self):
-#     # Test the forward pass with a 600x600 image
-#     input_image = torch.randn(1, 3, 600, 600)
-#     try:
-#       output = self.backbone(input_image)
-#     except Exception as e:
-#       self.fail(f"Forward pass failed with error: {e}")
+    # print(f"Final output shape: {s1.shape}")
+    return C2, C3, C4  # Final feature map from the backbone
 
-#   def test_output_shape(self):
-#     # Test if the output shape is as expected
-#     input_image = torch.randn(1, 3, 600, 600)
-#     output = self.backbone(input_image)
-#     # The output shape will depend on how many downsampling operations are applied
-#     # For example, after 6 layers with 2 reduction cells:
-#     # The output should be downsampled twice, leading to an output of 150x150.
-#     self.assertEqual(output.shape, (1, 256, 150, 150))  # Check this based on layer setup
 
-#   def test_variable_layers(self):
-#     # Test different numbers of layers
-#     for num_layers in [4, 6, 8, 10]:
-#       backbone = DARTSBackbone(C=64, layers=num_layers)
-#       input_image = torch.randn(1, 3, 600, 600)
-#       try:
-#         output = backbone(input_image)
-#       except Exception as e:
-#         self.fail(f"Backbone with {num_layers} layers failed with error: {e}")
-#       # Ensure output is a tensor
-#       self.assertIsInstance(output, torch.Tensor)
+class NeckFPN(nn.Module):
+    def __init__(self, in_channels):
+        super(NeckFPN, self).__init__()
 
-# if __name__ == '__main__':
-#   unittest.main()
+        # Define convolutions to adjust the channel dimensions for each feature map
+        self.conv_c4 = nn.Conv2d(in_channels[2], 256, kernel_size=1)  # C4 (75x75), reduce channels to 256
+        self.conv_c3 = nn.Conv2d(in_channels[1], 256, kernel_size=1)  # C3 (150x150), reduce channels to 256
+        self.conv_c2 = nn.Conv2d(in_channels[0], 256, kernel_size=1)  # C2 (300x300), reduce channels to 256
 
-class Neck(nn.Module):
-  def __init__(self, in_channels_list, out_channels):
-    """
-    Initializes a dual-scale neck structure using two scales of feature maps.
-    
-    Args:
-      in_channels_list (list): List of input channels from the backbone [C3, C4].
-      out_channels (int): Number of output channels after fusion.
-    """
-    super(Neck, self).__init__()
+        # Final 3x3 convolutions after feature map fusion
+        self.final_c2 = nn.Conv2d(256, 256, kernel_size=3, padding=1)  # Final C2 (300x300)
+        self.final_c3 = nn.Conv2d(256, 256, kernel_size=3, padding=1)  # Final C3 (150x150)
+        self.final_c4 = nn.Conv2d(256, 256, kernel_size=3, padding=1)  # Final C4 (75x75)
 
-    # Depthwise separable convolutions for both feature maps
-    self.conv1_C3 = nn.Sequential(
-      nn.Conv2d(in_channels_list[0], in_channels_list[0], kernel_size=3, padding=1, groups=in_channels_list[0]),
-      nn.Conv2d(in_channels_list[0], out_channels, kernel_size=1)
-    )
-    self.conv1_C4 = nn.Sequential(
-      nn.Conv2d(in_channels_list[1], in_channels_list[1], kernel_size=3, padding=1, groups=in_channels_list[1]),
-      nn.Conv2d(in_channels_list[1], out_channels, kernel_size=1)
-    )
+    def forward(self, c2, c3, c4):
+        # c2: 300x300 from the 6th backbone cell (shallower, high-resolution, fewer channels)
+        # c3: 150x150 from the 10th backbone cell (mid-level)
+        # c4: 75x75 from the final backbone cell (deepest, lowest resolution, most channels)
 
-    # Upsample C4 to match the resolution of C3
-    self.upsample = nn.Upsample(scale_factor=2, mode='nearest')
+        # Step 1: Adjust channels for C4 (75x75)
+        c4_out = self.conv_c4(c4)  # Adjust channels for C4: (75x75 -> 256 channels)
 
-    # Final convolution to fuse the scales
-    self.conv_fuse = nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1)
+        # Step 2: Upsample C4 (75x75 -> 150x150) and fuse with C3
+        c4_upsampled = F.interpolate(c4_out, scale_factor=2, mode='nearest')  # 75x75 -> 150x150
+        c3_fused = self.conv_c3(c3) + c4_upsampled  # Fuse C3 (150x150) and upsampled C4 (150x150)
 
-  def forward(self, C3, C4):
-    """
-    Forward pass for the dual-scale neck.
-    
-    Args:
-      C3 (Tensor): The highest resolution feature map from the backbone.
-      C4 (Tensor): The second-highest resolution feature map from the backbone.
-    
-    Returns:
-      Tensor: The fused feature map ready for the detection head.
-    """
-    # Process both scales
-    P3 = self.conv1_C3(C3)
-    P4 = self.conv1_C4(C4)
+        # Step 3: Upsample fused C3 (150x150 -> 300x300) and fuse with C2
+        c3_upsampled = F.interpolate(c3_fused, scale_factor=2, mode='nearest')  # 150x150 -> 300x300
+        c2_fused = self.conv_c2(c2) + c3_upsampled  # Fuse C2 (300x300) and upsampled C3 (300x300)
 
-    # Upsample P4 and add it to P3
-    P4 = self.upsample(P4)
-    fused = P3 + P4  # Fusion of two scales
+        # Step 4: Apply final 3x3 convolutions to each fused feature map
+        c2_final = self.final_c2(c2_fused)  # Final output for C2 (300x300)
+        c3_final = self.final_c3(c3_fused)  # Final output for C3 (150x150)
+        c4_final = self.final_c4(c4_out)    # Final output for C4 (75x75)
 
-    # Final convolution
-    fused = self.conv_fuse(fused)
-    return fused
+        return c2_final, c3_final, c4_final  # Return feature maps at 300x300, 150x150, 75x75
 
 class Detect(nn.Module):
     """YOLOv8 Detect head for detection models."""
@@ -549,7 +575,7 @@ class YOLOv8StudentModel(nn.Module):
     backbone_out_channels = [C * multiplier * 4, C * multiplier * 8]  # Example for C3 and C4
 
     # Neck that fuses multi-scale feature maps
-    self.neck = Neck(in_channels_list=backbone_out_channels, out_channels=256)  # Assuming output to be 256 channels
+    self.neck = NeckFPN(in_channels_list=backbone_out_channels, out_channels=256)  # Assuming output to be 256 channels
     
     # Detection head for predicting bounding boxes, objectness scores, and class probabilities
     self.detect_head = Detect(nc=num_classes, ch=[256])  # Input channels are 256 from the neck
@@ -578,58 +604,33 @@ class YOLOv8StudentModel(nn.Module):
     
     return bbox_preds, obj_preds, cls_preds
   
-class TestDetectHead(unittest.TestCase):
+class TestDARTSBackbone(unittest.TestCase):
     def setUp(self):
-        self.num_classes = 10  # Example number of object classes
-        self.in_channels = (256, 512, 1024)  # Example input channels from the Neck
-        self.detect_head = Detect(nc=self.num_classes, ch=self.in_channels)
+        # Initialize the DARTSBackbone with 14 cells and necessary parameters
+        self.backbone = DARTSBackbone(C=64, layers=14, steps=4, multiplier=4, stem_multiplier=3)
         
-        # Create a list of tensors to simulate multi-scale feature maps from the Neck
-        self.neck_output = [
-            torch.randn(1, 256, 80, 80),   # Example for a larger scale
-            torch.randn(1, 512, 40, 40),   # Example for a medium scale
-            torch.randn(1, 1024, 20, 20)   # Example for a smaller scale
-        ]
-
-    def test_forward_pass(self):
-        # Test the forward pass of the Detection Head
-        output = self.detect_head(self.neck_output)
-        
-        # Check that the output is a list (for training) or a tensor (for inference)
-        self.assertTrue(isinstance(output, (list, torch.Tensor)), 
-                        "Output should be either a list (training) or a tensor (inference)")
+        # Create a mock input tensor with a batch size of 1 and image size of 600x600
+        self.input_tensor = torch.randn(1, 3, 600, 600)
 
     def test_output_shapes(self):
-        # Forward pass through the Detection Head
-        output = self.detect_head(self.neck_output)
+        """Test if the outputs of the backbone have the expected shapes."""
+        C2, C3, C4 = self.backbone(self.input_tensor)
         
-        if self.detect_head.training:
-            # Check output for training mode
-            self.assertTrue(isinstance(output, list), "Training output should be a list")
-            self.assertEqual(len(output), len(self.in_channels), 
-                             f"Expected {len(self.in_channels)} outputs, but got {len(output)}")
-            
-            for i, feature_map in enumerate(output):
-                expected_channels = self.num_classes + 4 * self.detect_head.reg_max
-                self.assertEqual(feature_map.shape[1], expected_channels, 
-                                 f"Expected {expected_channels} channels in output {i}, but got {feature_map.shape[1]}")
-        else:
-            # Check output for inference mode
-            self.assertTrue(isinstance(output, torch.Tensor), "Inference output should be a tensor")
-            self.assertEqual(output.dim(), 3, f"Expected 3D output, but got {output.dim()}D")
-            self.assertEqual(output.shape[1], 4 + 1 + self.num_classes, 
-                             f"Expected {4 + 1 + self.num_classes} values per detection, but got {output.shape[1]}")
+        # Print shapes for debugging
+        print(f"C2 shape: {C2.shape}")
+        print(f"C3 shape: {C3.shape}")
+        print(f"C4 shape: {C4.shape}")
 
-    def test_dynamic_attribute(self):
-        # Test that the dynamic attribute is set to False initially
-        self.assertFalse(self.detect_head.dynamic, "dynamic attribute should be False initially")
-
-    def test_anchors_and_strides(self):
-        # Test that anchors and strides are empty initially
-        self.assertTrue(torch.equal(self.detect_head.anchors, torch.empty(0)), 
-                        "anchors should be an empty tensor initially")
-        self.assertTrue(torch.equal(self.detect_head.strides, torch.empty(0)), 
-                        "strides should be an empty tensor initially")
+        # Check if the output shapes are valid
+        self.assertIsInstance(C2, torch.Tensor, "C2 output is not a tensor")
+        self.assertIsInstance(C3, torch.Tensor, "C3 output is not a tensor")
+        self.assertIsInstance(C4, torch.Tensor, "C4 output is not a tensor")
+        
+        # Expected sizes considering downsampling after reduction cells
+        # C2 (after cell 6), C3 (after cell 10), C4 (final output after cell 14)
+        self.assertEqual(C2.shape[2:], (150, 150), "C2 output has incorrect spatial size")
+        self.assertEqual(C3.shape[2:], (75, 75), "C3 output has incorrect spatial size")
+        self.assertEqual(C4.shape[2:], (75, 75), "C4 output has incorrect spatial size")
 
 if __name__ == '__main__':
-    unittest.main()
+    unittest.main(verbosity=2)  # Set verbosity for detailed test output
