@@ -234,8 +234,7 @@ class LDConv(nn.Module):
         x_offset = x.gather(dim=-1, index=index).contiguous().view(b, c, h, w, N)
 
         return x_offset
-
-    
+        
     #  Stacking resampled features in the row direction.
     @staticmethod
     def _reshape_x_offset(x_offset, num_param):

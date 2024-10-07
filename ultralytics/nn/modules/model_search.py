@@ -347,37 +347,26 @@ class DARTSBackbone(nn.Module):
     return self._arch_parameters
 
   def forward(self, x):
-    s0 = s1 = self.stem(x)
-    C2 = None  # To capture the output of the 6th cell (C2)
-    C3 = None  # To capture the output of the 10th cell (C3)
-    
-    # print(f"Stem output shape: {s1.shape}")
-    
-    for i, cell in enumerate(self.cells):
-      # Use softmax on alphas to get the weights for each operation in the cell
-      if cell.reduction:
-        weights = F.softmax(self.alphas_reduce, dim=-1)
-        # print(f"Cell {i + 1} is a Reduction Cell")
-      else:
-        weights = F.softmax(self.alphas_normal, dim=-1)
-        # print(f"Cell {i + 1} is a Normal Cell")
-        
-      # print(f"Cell {i + 1} output shape: {s1.shape}")
-      
-      # Perform the forward pass through the cell
-      s0, s1 = s1, cell(s0, s1, weights)
-      
-      if i == self.cell6_index:
-        C2 = s1  # Capture the output of the 6th cell (C3)
+        with autocast():  # Enable mixed precision
+            s0 = s1 = self.stem(x)
+            C2 = C3 = None
 
-      if i == self.cell10_index:
-        C3 = s1  # Capture the output of the 10th cell (C4)
-        
-    C4 = s1
-    
-    # print(f"Final output shape: {s1.shape}")
-    return C2, C3, C4  # Final feature map from the backbone
+            for i, cell in enumerate(self.cells):
+                if cell.reduction:
+                    weights = F.softmax(self.alphas_reduce, dim=-1)
+                else:
+                    weights = F.softmax(self.alphas_normal, dim=-1)
 
+                s0, s1 = s1, cell(s0, s1, weights)
+
+                if i == self.cell6_index:
+                    C2 = s1
+                if i == self.cell10_index:
+                    C3 = s1
+
+            C4 = s1
+
+        return C2, C3, C4
 
 class NeckFPN(nn.Module):
     def __init__(self, in_channels):
