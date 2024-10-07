@@ -607,7 +607,7 @@ class YOLOv8StudentModel(nn.Module):
 class TestDARTSBackbone(unittest.TestCase):
     def setUp(self):
         # Initialize the DARTSBackbone with 14 cells and necessary parameters
-        self.backbone = DARTSBackbone(C=64, layers=14, steps=4, multiplier=4, stem_multiplier=3)
+        self.backbone = DARTSBackbone(C=8, layers=14, steps=4, multiplier=4, stem_multiplier=3)
         
         # Create a mock input tensor with a batch size of 1 and image size of 600x600
         self.input_tensor = torch.randn(1, 3, 600, 600)
