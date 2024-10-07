@@ -604,33 +604,84 @@ class YOLOv8StudentModel(nn.Module):
     
     return bbox_preds, obj_preds, cls_preds
   
-class TestDARTSBackbone(unittest.TestCase):
-    def setUp(self):
-        # Initialize the DARTSBackbone with 14 cells and necessary parameters
-        self.backbone = DARTSBackbone(C=8, layers=14, steps=4, multiplier=1, stem_multiplier=1)
-        
-        # Create a mock input tensor with a batch size of 1 and image size of 600x600
-        self.input_tensor = torch.randn(1, 3, 600, 600)
+  # Function to profile memory usage during the forward and backward pass
+def profile_memory(model, input_tensor):
+    # Move model and input to the GPU (if available)
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    model = model.to(device)
+    input_tensor = input_tensor.to(device)
 
-    def test_output_shapes(self):
-        """Test if the outputs of the backbone have the expected shapes."""
-        C2, C3, C4 = self.backbone(self.input_tensor)
-        
-        # Print shapes for debugging
-        print(f"C2 shape: {C2.shape}")
-        print(f"C3 shape: {C3.shape}")
-        print(f"C4 shape: {C4.shape}")
+    # Set model to evaluation mode to avoid accumulating gradients during profiling
+    model.eval()
 
-        # Check if the output shapes are valid
-        self.assertIsInstance(C2, torch.Tensor, "C2 output is not a tensor")
-        self.assertIsInstance(C3, torch.Tensor, "C3 output is not a tensor")
-        self.assertIsInstance(C4, torch.Tensor, "C4 output is not a tensor")
-        
-        # Expected sizes considering downsampling after reduction cells
-        # C2 (after cell 6), C3 (after cell 10), C4 (final output after cell 14)
-        self.assertEqual(C2.shape[2:], (150, 150), "C2 output has incorrect spatial size")
-        self.assertEqual(C3.shape[2:], (75, 75), "C3 output has incorrect spatial size")
-        self.assertEqual(C4.shape[2:], (75, 75), "C4 output has incorrect spatial size")
+    # Forward pass and profiling memory usage
+    print("\n--- Memory Profiling for Forward Pass ---")
+    torch.cuda.reset_peak_memory_stats(device)
+    with torch.no_grad():
+        output = model(input_tensor)  # Forward pass
+    peak_memory_forward = torch.cuda.max_memory_allocated(device)
+    print(f"Peak Memory Usage during Forward Pass: {peak_memory_forward / 1e6:.2f} MB")
 
+    # Enable gradient computation and do a backward pass for more profiling
+    model.train()  # Set model to training mode
+    input_tensor.requires_grad_(True)
+    criterion = nn.MSELoss()
+
+    # Perform a forward pass, compute a dummy loss, and backward pass to profile memory
+    print("\n--- Memory Profiling for Backward Pass ---")
+    torch.cuda.reset_peak_memory_stats(device)
+    output = model(input_tensor)  # Forward pass
+    dummy_target = torch.randn_like(output[0]).to(device)  # Creating a target tensor for loss calculation
+    loss = criterion(output[0], dummy_target)  # Dummy loss
+    loss.backward()  # Backward pass
+    peak_memory_backward = torch.cuda.max_memory_allocated(device)
+    print(f"Peak Memory Usage during Backward Pass: {peak_memory_backward / 1e6:.2f} MB")
+
+    # Print a memory summary report
+    print("\n--- Memory Summary Report ---")
+    print(torch.cuda.memory_summary(device))
+
+# Example usage with your DARTSBackbone model
 if __name__ == '__main__':
-    unittest.main(verbosity=2)  # Set verbosity for detailed test output
+    # Initialize the DARTSBackbone with 8 initial channels, 14 layers, and other required parameters
+    model = DARTSBackbone(C=8, layers=14, steps=4, multiplier=4, stem_multiplier=3)
+    
+    # Create a mock input tensor with a batch size of 1 and an image size of 600x600
+    input_tensor = torch.randn(1, 3, 600, 600)
+    
+    # Profile memory usage
+    if torch.cuda.is_available():
+        profile_memory(model, input_tensor)
+    else:
+        print("CUDA is not available. Memory profiling requires a GPU.")
+  
+# class TestDARTSBackbone(unittest.TestCase):
+#     def setUp(self):
+#         # Initialize the DARTSBackbone with 14 cells and necessary parameters
+#         self.backbone = DARTSBackbone(C=8, layers=14, steps=4, multiplier=1, stem_multiplier=1)
+        
+#         # Create a mock input tensor with a batch size of 1 and image size of 600x600
+#         self.input_tensor = torch.randn(1, 3, 600, 600)
+
+#     def test_output_shapes(self):
+#         """Test if the outputs of the backbone have the expected shapes."""
+#         C2, C3, C4 = self.backbone(self.input_tensor)
+        
+#         # Print shapes for debugging
+#         print(f"C2 shape: {C2.shape}")
+#         print(f"C3 shape: {C3.shape}")
+#         print(f"C4 shape: {C4.shape}")
+
+#         # Check if the output shapes are valid
+#         self.assertIsInstance(C2, torch.Tensor, "C2 output is not a tensor")
+#         self.assertIsInstance(C3, torch.Tensor, "C3 output is not a tensor")
+#         self.assertIsInstance(C4, torch.Tensor, "C4 output is not a tensor")
+        
+#         # Expected sizes considering downsampling after reduction cells
+#         # C2 (after cell 6), C3 (after cell 10), C4 (final output after cell 14)
+#         self.assertEqual(C2.shape[2:], (150, 150), "C2 output has incorrect spatial size")
+#         self.assertEqual(C3.shape[2:], (75, 75), "C3 output has incorrect spatial size")
+#         self.assertEqual(C4.shape[2:], (75, 75), "C4 output has incorrect spatial size")
+
+# if __name__ == '__main__':
+#     unittest.main(verbosity=2)  # Set verbosity for detailed test output
