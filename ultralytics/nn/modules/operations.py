@@ -220,20 +220,28 @@ class LDConv(nn.Module):
         return p
 
     def _get_x_q(self, x, q, N):
-        b, h, w, _ = q.size()
-        padded_w = x.size(3)
-        c = x.size(1)
-        # (b, c, h*w)
-        x = x.contiguous().view(b, c, -1)
+        b, c, h, w = x.size()
 
-        # (b, h, w, N)
-        index = q[..., :N] * padded_w + q[..., N:]  # offset_x*w + offset_y
-        # (b, c, h*w*N)
-        index = index.contiguous().unsqueeze(dim=1).expand(-1, c, -1, -1, -1).contiguous().view(b, c, -1)
+        # Clamping the coordinates
+        q_lt = q.long()
+        q_rb = q_lt + 1
 
-        x_offset = x.gather(dim=-1, index=index).contiguous().view(b, c, h, w, N)
+        # Clamping q_lt and q_rb to be within bounds of the input tensor
+        q_lt = torch.cat([torch.clamp(q_lt[..., :N], 0, h - 1), torch.clamp(q_lt[..., N:], 0, w - 1)], dim=-1)
+        q_rb = torch.cat([torch.clamp(q_rb[..., :N], 0, h - 1), torch.clamp(q_rb[..., N:], 0, w - 1)], dim=-1)
 
-        return x_offset
+        x_offset = []
+        for i in range(b):
+            x_i = x[i]
+            q_lt_i = q_lt[i]
+            # Manually gather the values based on q_lt
+            x_offset_i = x_i[:, q_lt_i[..., :N], q_lt_i[..., N:]]
+            x_offset.append(x_offset_i)
+
+        # Stack and reshape the gathered values
+        x_offset = torch.stack(x_offset, dim=0)
+        return x_offset.view(b, c, h, w, N)
+
         
     #  Stacking resampled features in the row direction.
     @staticmethod
