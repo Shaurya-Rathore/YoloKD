@@ -352,6 +352,8 @@ class DARTSBackbone(nn.Module):
         with autocast():  # Enable mixed precision
             s0 = s1 = self.stem(x)
             C2 = C3 = None
+            gc.collect()
+            torch.cuda.empty_cache()
 
             for i, cell in enumerate(self.cells):
                 if cell.reduction:
@@ -367,7 +369,8 @@ class DARTSBackbone(nn.Module):
                     C3 = s1
 
             C4 = s1
-
+            gc.collect()
+            torch.cuda.empty_cache()
         return C2, C3, C4
 
 class NeckFPN(nn.Module):
