@@ -8,6 +8,7 @@ import copy
 # from ultralytics.nn.modules.block import DFL
 from operations import *
 from torch.autograd import Variable
+from torch.cuda.amp import autocast
 
 from genotypes import PRIMITIVES
 from genotypes import Genotype
