@@ -111,7 +111,7 @@ class FactorizedReduce(nn.Module):
         out = self.bn(out)
         return out
 
-class LDConv(nn.Module):
+"""class LDConv(nn.Module):
     def __init__(self, inc, outc, num_param, stride=1, bias=None):
         super(LDConv, self).__init__()
         self.num_param = num_param
@@ -223,19 +223,23 @@ class LDConv(nn.Module):
         b, h, w, _ = q.size()
         padded_w = x.size(3)
         c = x.size(1)
-        # (b, c, h*w)
+
+        # Reshaping x: (b, c, h*w)
         x = x.contiguous().view(b, c, -1)
 
-        # (b, h, w, N)
-        index = q[..., :N] * padded_w + q[..., N:]  # offset_x*w + offset_y
-        # (b, c, h*w*N)
+        # Computing the index: (b, h, w, N)
+        index = q[..., :N] * padded_w + q[..., N:]  # offset_x * w + offset_y
+
+        # Expanding and reshaping the index: (b, c, h*w*N)
         index = index.contiguous().unsqueeze(dim=1).expand(-1, c, -1, -1, -1).contiguous().view(b, c, -1)
 
+        # Gathering x based on the index and reshaping: (b, c, h, w, N)
         x_offset = x.gather(dim=-1, index=index).contiguous().view(b, c, h, w, N)
 
         return x_offset
 
-    
+
+        
     #  Stacking resampled features in the row direction.
     @staticmethod
     def _reshape_x_offset(x_offset, num_param):
@@ -247,7 +251,7 @@ class LDConv(nn.Module):
         # using the column conv as follow， then, Conv2d(inc, outc, kernel_size=(num_param, 1), stride=(num_param, 1), bias=bias)
         
         x_offset = rearrange(x_offset, 'b c h w n -> b c (h n) w')
-        return x_offset
+        return x_offset"""
 
 # Dictionary of operations, including the new Linear Deformable Convolution
 OPS = {
@@ -258,8 +262,8 @@ OPS = {
     'sep_conv_3x3': lambda C, stride, affine: SepConv(C, C, 3, stride, 1, affine=affine),
     'sep_conv_5x5': lambda C, stride, affine: SepConv(C, C, 5, stride, 2, affine=affine),
     'dil_conv_3x3': lambda C, stride, affine: DilConv(C, C, 3, stride, 2, 2, affine=affine),
-    'dil_conv_5x5': lambda C, stride, affine: DilConv(C, C, 5, stride, 2, 2, affine=affine),
-    'lde_conv_3x3': lambda C, stride, affine: LDConv(C, C, 6, stride),
+    # 'dil_conv_5x5': lambda C, stride, affine: DilConv(C, C, 5, stride, 2, 2, affine=affine),
+    #'lde_conv_3x3': lambda C, stride, affine: LDConv(C, C, 6, stride),
 }
 
 # Test input data (batch_size, channels, height, width)
