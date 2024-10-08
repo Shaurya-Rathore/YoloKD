@@ -129,7 +129,13 @@ class MixedOp(nn.Module):
       self._ops.append(op)
 
   def forward(self, x, weights):
-    return sum(w * op(x) for w, op in zip(weights, self._ops))
+    total = 0
+    for w, op in zip(weights, self._ops):
+      y=op(x)
+      print(x.shape)
+      print(y.shape)
+      total += w * y
+    return total
 
 class StemLayer(nn.Module):
   def __init__(self, in_channels=3, out_channels=64, kernel_size=3, stride=1, padding=1):
