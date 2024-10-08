@@ -132,9 +132,8 @@ class MixedOp(nn.Module):
     total = 0
     for w, op in zip(weights, self._ops):
       y=op(x)
-      print(x.shape)
-      print(y.shape)
       total += w * y
+      print(total.shape)
     return total
 
 class StemLayer(nn.Module):
@@ -237,7 +236,10 @@ class Cell(nn.Module):
       offset += len(states)
       states.append(s)
 
-    return torch.cat(states[-self._multiplier:], dim=1)
+    final_output = torch.cat(states[-self._multiplier:], dim=1)
+    
+    print(f"Final concatenated state shape: {final_output.shape}")
+    return final_output
 
 class Network(nn.Module):
 
