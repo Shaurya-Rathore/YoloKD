@@ -337,8 +337,8 @@ class DARTSBackbone(nn.Module):
     # print(f"Initializing alphas with k={k} and num_ops={num_ops}")
 
     # Alphas control the operation weights in the cells
-    self.alphas_normal = nn.Parameter(1e-3 * torch.randn(k, num_ops))
-    self.alphas_reduce = nn.Parameter(1e-3 * torch.randn(k, num_ops))
+    self.alphas_normal = nn.Variable(1e-3 * torch.randn(k, num_ops), requires_grad = True)
+    self.alphas_reduce = nn.Variable(1e-3 * torch.randn(k, num_ops), requires_grad = True)
     
     # Register alphas as learnable parameters
     self._arch_parameters = [self.alphas_normal, self.alphas_reduce]
