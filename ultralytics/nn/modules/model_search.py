@@ -114,7 +114,7 @@ class MixedOp(nn.Module):
       # If the operation changed the spatial size, resample it back to the input size
       if out.size()[2:] != input_size:
         # print(f"Resampling output of operation {idx} ({PRIMITIVES[idx]}) from {out.size()[2:]} to {input_size}")
-        out = F.interpolate(out, size=input_size, mode='bilinear', align_corners=True)
+        out = F.interpolate(out, size=input_size, mode='nearest', align_corners=True)
         result += w * out
         del out
         gc.collect()
@@ -175,7 +175,7 @@ class Cell(nn.Module):
         # Ensure all outputs have the same size as s0
         if out.size()[2:] != s0.size()[2:]:
           print(f"Interpolating output from {out.size()[2:]} to {s0.size()[2:]} at operation {offset+j}")
-          out = F.interpolate(out, size=s0.size()[2:], mode='bilinear', align_corners=True)
+          out = F.interpolate(out, size=s0.size()[2:], mode='nearest', align_corners=True)
         
         s.append(out)
       
