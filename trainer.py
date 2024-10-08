@@ -57,9 +57,10 @@ parser.add_argument('--ce_weight', type=float, default=0.1, help='weight for cro
 parser.add_argument('--temperature', type=float, default=3.0, help='temperature for distillation')
 args = parser.parse_args()
 
+device = 'cuda' if torch.cuda.is_available() else 'cpu'
 # Initialize the teacher model
 teacher = YOLO('yolov8m.yaml')
-teacher.to(device='cuda')
+teacher.to(device)
 # for name, layer in teacher.named_modules():
 #     print(name, layer)
 layer = getattr(teacher.model.model, '22').cv3[2][1].conv
