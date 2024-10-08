@@ -3,13 +3,11 @@ import torch.nn as nn
 import torch.nn.functional as F
 import unittest
 import copy
-import gc
 # from ultralytics.utils.tal import dist2bbox, make_anchors
 # from ultralytics.nn.modules.conv import Conv
 # from ultralytics.nn.modules.block import DFL
 from operations import *
 from torch.autograd import Variable
-from torch.cuda.amp import autocast
 
 from genotypes import PRIMITIVES
 from genotypes import Genotype
@@ -112,14 +110,12 @@ class MixedOp(nn.Module):
       # print(f"Output shape after operation {idx}: {out.size()}")
       
       # If the operation changed the spatial size, resample it back to the input size
-      if out.size()[2:] != input_size:
-        # print(f"Resampling output of operation {idx} ({PRIMITIVES[idx]}) from {out.size()[2:]} to {input_size}")
-        out = F.interpolate(out, size=input_size, mode='nearest')
-        result += w * out
-        del out
-        gc.collect()
-        torch.cuda.empty_cache()
-        
+      # if out.size()[2:] != input_size:
+      #   # print(f"Resampling output of operation {idx} ({PRIMITIVES[idx]}) from {out.size()[2:]} to {input_size}")
+      #   out = F.interpolate(out, size=input_size, mode='bilinear', align_corners=True)
+      
+      result += w * out
+
     return result
 
 class StemLayer(nn.Module):
@@ -173,9 +169,9 @@ class Cell(nn.Module):
         out = self._ops[offset+j](h, weights[offset+j])
         
         # Ensure all outputs have the same size as s0
-        if out.size()[2:] != s0.size()[2:]:
-          print(f"Interpolating output from {out.size()[2:]} to {s0.size()[2:]} at operation {offset+j}")
-          out = F.interpolate(out, size=s0.size()[2:], mode='nearest')
+        # if out.size()[2:] != s0.size()[2:]:
+        #   print(f"Interpolating output from {out.size()[2:]} to {s0.size()[2:]} at operation {offset+j}")
+        #   out = F.interpolate(out, size=s0.size()[2:], mode='bilinear', align_corners=True)
         
         s.append(out)
       
@@ -183,8 +179,6 @@ class Cell(nn.Module):
       # print(f"State shape after step {i}: {s.shape}")
       offset += len(states)
       states.append(s)
-      gc.collect()
-      torch.cuda.empty_cache()
 
     final_output = torch.cat(states[-self._multiplier:], dim=1)
     
@@ -353,29 +347,37 @@ class DARTSBackbone(nn.Module):
     return self._arch_parameters
 
   def forward(self, x):
-        with autocast():  # Enable mixed precision
-            s0 = s1 = self.stem(x)
-            C2 = C3 = None
-            gc.collect()
-            torch.cuda.empty_cache()
+    s0 = s1 = self.stem(x)
+    C2 = None  # To capture the output of the 6th cell (C2)
+    C3 = None  # To capture the output of the 10th cell (C3)
+    
+    # print(f"Stem output shape: {s1.shape}")
+    
+    for i, cell in enumerate(self.cells):
+      # Use softmax on alphas to get the weights for each operation in the cell
+      if cell.reduction:
+        weights = F.softmax(self.alphas_reduce, dim=-1)
+        # print(f"Cell {i + 1} is a Reduction Cell")
+      else:
+        weights = F.softmax(self.alphas_normal, dim=-1)
+        # print(f"Cell {i + 1} is a Normal Cell")
+        
+      # print(f"Cell {i + 1} output shape: {s1.shape}")
+      
+      # Perform the forward pass through the cell
+      s0, s1 = s1, cell(s0, s1, weights)
+      
+      if i == self.cell6_index:
+        C2 = s1  # Capture the output of the 6th cell (C3)
 
-            for i, cell in enumerate(self.cells):
-                if cell.reduction:
-                    weights = F.softmax(self.alphas_reduce, dim=-1)
-                else:
-                    weights = F.softmax(self.alphas_normal, dim=-1)
+      if i == self.cell10_index:
+        C3 = s1  # Capture the output of the 10th cell (C4)
+        
+    C4 = s1
+    
+    # print(f"Final output shape: {s1.shape}")
+    return C2, C3, C4  # Final feature map from the backbone
 
-                s0, s1 = s1, cell(s0, s1, weights)
-
-                if i == self.cell6_index:
-                    C2 = s1
-                if i == self.cell10_index:
-                    C3 = s1
-
-            C4 = s1
-            gc.collect()
-            torch.cuda.empty_cache()
-        return C2, C3, C4
 
 class NeckFPN(nn.Module):
     def __init__(self, in_channels):
@@ -615,15 +617,11 @@ def profile_memory(model, input_tensor):
     # Forward pass and profiling memory usage
     print("\n--- Memory Profiling for Forward Pass ---")
     torch.cuda.reset_peak_memory_stats(device)
-    gc.collect()
-    torch.cuda.empty_cache()
     with torch.no_grad():
         output = model(input_tensor)  # Forward pass
     peak_memory_forward = torch.cuda.max_memory_allocated(device)
     print(f"Peak Memory Usage during Forward Pass: {peak_memory_forward / 1e6:.2f} MB")
-    del output
-    gc.collect()
-    torch.cuda.empty_cache()
+
     # Enable gradient computation and do a backward pass for more profiling
     model.train()  # Set model to training mode
     input_tensor.requires_grad_(True)
@@ -632,17 +630,13 @@ def profile_memory(model, input_tensor):
     # Perform a forward pass, compute a dummy loss, and backward pass to profile memory
     print("\n--- Memory Profiling for Backward Pass ---")
     torch.cuda.reset_peak_memory_stats(device)
-    gc.collect()
-    torch.cuda.empty_cache()
     output = model(input_tensor)  # Forward pass
     dummy_target = torch.randn_like(output[0]).to(device)  # Creating a target tensor for loss calculation
     loss = criterion(output[0], dummy_target)  # Dummy loss
     loss.backward()  # Backward pass
     peak_memory_backward = torch.cuda.max_memory_allocated(device)
     print(f"Peak Memory Usage during Backward Pass: {peak_memory_backward / 1e6:.2f} MB")
-    del output,dummy_target,loss
-    gc.collect()
-    torch.cuda.empty_cache()
+
     # Print a memory summary report
     print("\n--- Memory Summary Report ---")
     print(torch.cuda.memory_summary(device))
