@@ -24,10 +24,7 @@ wandb.init(mode='disabled')
 outputs = []
 
 def forward_hook(module, input, output):
-    print(input)
-    print(f"Forward hook activated! Layer: {module}")
-    print(f"Input shape: {input[0].shape}")
-    print(f"Output shape: {output.shape}")
+    # Capture the output from the layer
     outputs.append(output)
 
 # Argument Parsing
@@ -65,13 +62,11 @@ teacher = YOLO('yolov8m.pt')
 teacher.to(device='cuda')
 # for name, layer in teacher.named_modules():
 #     print(name, layer)
-# layer = getattr(teacher.model.model, '22').cv3[2][1].conv
-# print(layer)
-#hook_handle = layer.register_forward_hook(forward_hook)
-hooks = []
-for name, layer in teacher.model.named_modules():
-    hooks.append(layer.register_forward_hook(forward_hook))
+layer = getattr(teacher.model.model, '22').cv3[2][1].conv
+print(layer)
+hook_handle = layer.register_forward_hook(forward_hook)
 #teacher.load_state_dict(torch.load('/YoloKD/yolowts.pt'))
+img_path = "C:\\Users\\Shaurya\\Pictures\\aadhaar page 1.jpg"
 with torch.no_grad():  # No gradient computation is needed
     output = teacher("C:\\Users\\Shaurya\\Pictures\\aadhaar page 1.jpg")
 
