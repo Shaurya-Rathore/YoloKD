@@ -687,6 +687,7 @@ def profile_memory(model, input_tensor):
     print("\n--- Memory Profiling for Backward Pass ---")
     torch.cuda.reset_peak_memory_stats(device)
     output = model(input_tensor)  # Forward pass
+    print(output)
     dummy_target = torch.randn_like(output[0]).to(device)  # Creating a target tensor for loss calculation
     loss = criterion(output[0], dummy_target)  # Dummy loss
     loss.backward()  # Backward pass
