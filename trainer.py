@@ -66,9 +66,9 @@ teacher.to(device)
 layer = getattr(teacher.model.model, '22').cv3[2][1].conv
 hook_handle = layer.register_forward_hook(forward_hook)
 #teacher.load_state_dict(torch.load('/YoloKD/yolowts.pt'))
-img_path = "C:\\Users\\Shaurya\\Pictures\\aadhaar page 1.jpg"
+#img_path = "C:\\Users\\Shaurya\\Pictures\\aadhaar page 1.jpg"
 with torch.no_grad():  # No gradient computation is needed
-    output = teacher("/kaggle/input/waiddataset/WAID-main/WAID-main/WAID/data.yaml")
+    output = teacher("/kaggle/input/ooga-dataset/ooga/ooga-main/ooga/data.yaml")
 
 print("Final Output:", output)  # This is the model's output
 print("Captured Output from the Hook:", outputs[-1])
