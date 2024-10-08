@@ -700,7 +700,7 @@ def profile_memory(model, input_tensor):
 # Example usage with your DARTSBackbone model
 if __name__ == '__main__':
     # Initialize the DARTSBackbone with 8 initial channels, 14 layers, and other required parameters
-    model = DARTSBackbone(C=8, layers=14, steps=4, multiplier=4, stem_multiplier=3)
+    model = DARTSBackbone(C=8, layers=3, steps=4, multiplier=4, stem_multiplier=3)
     
     # Create a mock input tensor with a batch size of 1 and an image size of 600x600
     input_tensor = torch.randn(1, 3, 600, 600)
