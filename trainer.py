@@ -73,10 +73,7 @@ args = parser.parse_args()
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 # Initialize the teacher model
 teacher = YOLO('yolov8m.yaml')
-checkpoint = torch.load('yolov8m.pt')  # Load pre-trained checkpoint
-teacher.load_state_dict(checkpoint['model'].state_dict(), strict=False)
-teacher.model.model[-1].nc = 6
-#model_state_dict = torch.load("/kaggle/input/yolov8m-pt/yolov8m.pt")
+model_state_dict = torch.load("/kaggle/input/yolov8m-pt/yolov8m.pt")
 teacher.to(device)
 
 # for name, layer in teacher.named_modules():
