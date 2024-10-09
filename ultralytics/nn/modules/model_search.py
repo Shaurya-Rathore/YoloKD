@@ -599,6 +599,7 @@ class Detect(nn.Module):
                 dimension format [x, y, w, h, max_class_prob, class_index].
         """
         batch_size, anchors, predictions = preds.shape  # i.e. shape(16,8400,84)
+        print("anchorr",anchors)
         boxes, scores = preds.split([4, nc], dim=-1)
         index = scores.amax(dim=-1).topk(min(max_det, anchors))[1].unsqueeze(-1)
         boxes = boxes.gather(dim=1, index=index.repeat(1, 1, 4))
@@ -634,7 +635,7 @@ class YOLOv8StudentModel(nn.Module):
     self.neck = NeckFPN(in_channels=backbone_out_channels)  # Assuming output to be 256 channels
     
     # Detection head for predicting bounding boxes, objectness scores, and class probabilities
-    self.detect_head = Detect(nc=num_classes, ch=[256])  # Input channels are 256 from the neck
+    self.detect_head = Detect(nc=num_classes, ch=[256,256,256]) 
 
   def forward(self, x):
     """
@@ -657,7 +658,7 @@ class YOLOv8StudentModel(nn.Module):
     print("fusionnn",fused_features)
     # Step 3: Predict bounding boxes, objectness, and class scores
     bbox_preds, obj_preds, cls_preds = self.detect_head(list(fused_features))
-    
+
     return bbox_preds, obj_preds, cls_preds
   
   # Function to profile memory usage during the forward and backward pass
