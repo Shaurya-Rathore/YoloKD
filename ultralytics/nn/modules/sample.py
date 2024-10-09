@@ -26,9 +26,9 @@ def test_network():
     # Forward pass
     bbox_preds, obj_preds, cls_preds = model(x)  # Unpack the tuple returned by forward()
     #print(f"Output shape: {logits.shape}")
-    print("bbox",bbox_preds) 
-    print("obj",obj_preds)
-    print("cls",cls_preds)
+    print("bbox",bbox_preds.shape) 
+    print("obj",obj_preds.shape)
+    print("cls",cls_preds.shape)
 
     # Calculate loss
     #loss = model._loss(x, labels)
