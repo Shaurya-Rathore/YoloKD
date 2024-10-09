@@ -3,11 +3,12 @@ import torch.nn as nn
 import torch.nn.functional as F
 import unittest
 import copy
+import time
 # from ultralytics.utils.tal import dist2bbox, make_anchors
 # from ultralytics.nn.modules.conv import Conv
 # from ultralytics.nn.modules.block import DFL
 from operations import *
-from torch.autograd import Variable
+from torch.cuda.amp import autocast, GradScaler
 
 from genotypes import PRIMITIVES
 from genotypes import Genotype
@@ -86,37 +87,6 @@ class DFL(nn.Module):
         return self.conv(x.view(b, 4, self.c1, a).transpose(2, 1).softmax(1)).view(b, 4, a)
         # return self.conv(x.view(b, self.c1, 4, a).softmax(1)).view(b, 4, a)
 
-"""class MixedOp(nn.Module):
-
-  def __init__(self, C, stride):
-    super(MixedOp, self).__init__()
-    self._ops = nn.ModuleList()
-    self.stride = stride  # Save stride
-    for primitive in PRIMITIVES:
-      op = OPS[primitive](C, stride, False)
-      if 'pool' in primitive:
-        op = nn.Sequential(op, nn.BatchNorm2d(C, affine=False))
-      self._ops.append(op)
-
-  def forward(self, x, weights):
-    # Get the size of the input tensor
-    input_size = x.size()[2:]
-
-    # Apply each operation and resample the output to match the input size if necessary
-    result = 0
-    for idx, (w, op) in enumerate(zip(weights, self._ops)):
-      # print(f"Applying operation {idx} ({PRIMITIVES[idx]}) with weight {w}")
-      out = op(x)
-      # print(f"Output shape after operation {idx}: {out.size()}")
-      
-      # If the operation changed the spatial size, resample it back to the input size
-      # if out.size()[2:] != input_size:
-      #   # print(f"Resampling output of operation {idx} ({PRIMITIVES[idx]}) from {out.size()[2:]} to {input_size}")
-      #   out = F.interpolate(out, size=input_size, mode='bilinear', align_corners=True)
-      
-      result += w * out
-
-    return result"""
 class MixedOp(nn.Module):
 
   def __init__(self, C, stride):
@@ -148,60 +118,6 @@ class StemLayer(nn.Module):
     x = self.bn(x)
     x = self.relu(x)
     return x
-
-"""class Cell(nn.Module):
-
-  def __init__(self, steps, multiplier, C_prev_prev, C_prev, C, reduction, reduction_prev):
-    super(Cell, self).__init__()
-    self.reduction = reduction
-
-    if reduction_prev:
-      self.preprocess0 = FactorizedReduce(C_prev_prev, C, affine=False)
-    else:
-      self.preprocess0 = ReLUConvBN(C_prev_prev, C, 1, 1, 0, affine=False)
-    self.preprocess1 = ReLUConvBN(C_prev, C, 1, 1, 0, affine=False)
-    self._steps = steps
-    self._multiplier = multiplier
-
-    self._ops = nn.ModuleList()
-    self._bns = nn.ModuleList()
-    for i in range(self._steps):
-      for j in range(2+i):
-        stride = 2 if reduction and j < 2 else 1
-        op = MixedOp(C, stride)
-        self._ops.append(op)
-
-  def forward(self, s0, s1, weights):
-    s0 = self.preprocess0(s0)
-    s1 = self.preprocess1(s1)
-    
-    # print(f"s0 shape after preprocessing: {s0.shape}, s1 shape after preprocessing: {s1.shape}")
-
-    states = [s0, s1]
-    offset = 0
-    for i in range(self._steps):
-      s = []
-      for j, h in enumerate(states):
-        # Apply the operation
-        # print(f"Applying operation {offset+j} in step {i}")
-        out = self._ops[offset+j](h, weights[offset+j])
-        
-        # Ensure all outputs have the same size as s0
-        # if out.size()[2:] != s0.size()[2:]:
-        #   print(f"Interpolating output from {out.size()[2:]} to {s0.size()[2:]} at operation {offset+j}")
-        #   out = F.interpolate(out, size=s0.size()[2:], mode='bilinear', align_corners=True)
-        
-        s.append(out)
-      
-      s = sum(s)
-      # print(f"State shape after step {i}: {s.shape}")
-      offset += len(states)
-      states.append(s)
-
-    final_output = torch.cat(states[-self._multiplier:], dim=1)
-    
-    print(f"Final concatenated state shape: {final_output.shape}")
-    return final_output"""
 
 class Cell(nn.Module):
 
@@ -303,8 +219,8 @@ class Network(nn.Module):
     k = sum(1 for i in range(self._steps) for n in range(2+i))
     num_ops = len(PRIMITIVES)
 
-    self.alphas_normal = Variable(1e-3*torch.randn(k, num_ops), requires_grad=True)
-    self.alphas_reduce = Variable(1e-3*torch.randn(k, num_ops), requires_grad=True)
+    self.alphas_normal = nn.Parameter(1e-3*torch.randn(k, num_ops))
+    self.alphas_reduce = nn.Parameter(1e-3*torch.randn(k, num_ops))
     self._arch_parameters = [
       self.alphas_normal,
       self.alphas_reduce,
@@ -390,11 +306,10 @@ class DARTSBackbone(nn.Module):
     """Initialize architecture parameters (alphas)."""
     k = sum(1 for i in range(self._steps) for n in range(2 + i))
     num_ops = len(PRIMITIVES)
-    # print(f"Initializing alphas with k={k} and num_ops={num_ops}")
 
     # Alphas control the operation weights in the cells
-    self.alphas_normal = Variable(1e-3 * torch.randn(k, num_ops), requires_grad = True)
-    self.alphas_reduce = Variable(1e-3 * torch.randn(k, num_ops), requires_grad = True)
+    self.alphas_normal = nn.Parameter(1e-3 * torch.randn(k, num_ops))
+    self.alphas_reduce = nn.Parameter(1e-3 * torch.randn(k, num_ops))
     
     # Register alphas as learnable parameters
     self._arch_parameters = [self.alphas_normal, self.alphas_reduce]
@@ -403,36 +318,55 @@ class DARTSBackbone(nn.Module):
     return self._arch_parameters
 
   def forward(self, x):
-    s0 = s1 = self.stem(x)
-    C2 = None  # To capture the output of the 6th cell (C2)
-    C3 = None  # To capture the output of the 10th cell (C3)
-    
-    # print(f"Stem output shape: {s1.shape}")
-    
-    for i, cell in enumerate(self.cells):
-      # Use softmax on alphas to get the weights for each operation in the cell
-      if cell.reduction:
-        weights = F.softmax(self.alphas_reduce, dim=-1)
-        # print(f"Cell {i + 1} is a Reduction Cell")
-      else:
-        weights = F.softmax(self.alphas_normal, dim=-1)
-        # print(f"Cell {i + 1} is a Normal Cell")
-        
-      # print(f"Cell {i + 1} output shape: {s1.shape}")
-      
-      # Perform the forward pass through the cell
-      s0, s1 = s1, cell(s0, s1, weights)
-      
-      if i == self.cell6_index:
-        C2 = s1  # Capture the output of the 6th cell (C3)
+    # Use autocast for mixed precision
+    with autocast():
+      s0 = s1 = self.stem(x)
+      C2, C3 = None, None  # Capture outputs from the 6th and 10th cells
 
-      if i == self.cell10_index:
-        C3 = s1  # Capture the output of the 10th cell (C4)
-        
-    C4 = s1
+      for i, cell in enumerate(self.cells):
+        # Apply weights based on the type of cell
+        if cell.reduction:
+          weights = F.softmax(self.alphas_reduce, dim=-1)
+        else:
+          weights = F.softmax(self.alphas_normal, dim=-1)
+
+        s0, s1 = s1, cell(s0, s1, weights)  # Forward pass through each cell
+
+        if i == self.cell6_index:
+          C2 = s1  # Output from the 6th cell
+        if i == self.cell10_index:
+          C3 = s1  # Output from the 10th cell
+
+      C4 = s1  # Final output from the backbone
+
+    # Free unused GPU memory
+    torch.cuda.empty_cache()
+
+    return C2, C3, C4  # Return feature maps
+
+  # Mixed precision training setup example
+  # Use `torch.cuda.amp.GradScaler` to handle gradients safely during training
+  def train_step(model, optimizer, data, target):
+    # Initialize the scaler for mixed precision gradients
+    scaler = GradScaler()
+
+    optimizer.zero_grad()  # Clear gradients
     
-    # print(f"Final output shape: {s1.shape}")
-    return C2, C3, C4  # Final feature map from the backbone
+    # Use autocast for forward pass
+    with autocast():
+      output = model(data)  # Forward pass
+      loss = F.mse_loss(output[0], target)  # Example loss function
+
+    # Scale loss and backward pass
+    scaler.scale(loss).backward()
+
+    # Optimizer step with gradient scaling
+    scaler.step(optimizer)
+
+    # Update scaler for next step
+    scaler.update()
+
+    return loss.item()
 
 
 class NeckFPN(nn.Module):
@@ -660,86 +594,3 @@ class YOLOv8StudentModel(nn.Module):
     bbox_preds, obj_preds, cls_preds = self.detect_head(list(fused_features))
 
     return bbox_preds, obj_preds, cls_preds
-  
-  # Function to profile memory usage during the forward and backward pass
-def profile_memory(model, input_tensor):
-    # Move model and input to the GPU (if available)
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    model = model.to(device)
-    input_tensor = input_tensor.to(device)
-
-    # Set model to evaluation mode to avoid accumulating gradients during profiling
-    model.eval()
-
-    # Forward pass and profiling memory usage
-    print("\n--- Memory Profiling for Forward Pass ---")
-    torch.cuda.reset_peak_memory_stats(device)
-    with torch.no_grad():
-        output = model(input_tensor)  # Forward pass
-    peak_memory_forward = torch.cuda.max_memory_allocated(device)
-    print(f"Peak Memory Usage during Forward Pass: {peak_memory_forward / 1e6:.2f} MB")
-
-    # Enable gradient computation and do a backward pass for more profiling
-    model.train()  # Set model to training mode
-    input_tensor.requires_grad_(True)
-    criterion = nn.MSELoss()
-
-    # Perform a forward pass, compute a dummy loss, and backward pass to profile memory
-    print("\n--- Memory Profiling for Backward Pass ---")
-    torch.cuda.reset_peak_memory_stats(device)
-    output = model(input_tensor)  # Forward pass
-    print(output)
-    dummy_target = torch.randn_like(output[0]).to(device)  # Creating a target tensor for loss calculation
-    loss = criterion(output[0], dummy_target)  # Dummy loss
-    loss.backward()  # Backward pass
-    peak_memory_backward = torch.cuda.max_memory_allocated(device)
-    print(f"Peak Memory Usage during Backward Pass: {peak_memory_backward / 1e6:.2f} MB")
-
-    # Print a memory summary report
-    print("\n--- Memory Summary Report ---")
-    print(torch.cuda.memory_summary(device))
-
-# Example usage with your DARTSBackbone model
-if __name__ == '__main__':
-    # Initialize the DARTSBackbone with 8 initial channels, 14 layers, and other required parameters
-    model = DARTSBackbone(C=8, layers=3, steps=4, multiplier=4, stem_multiplier=3)
-    
-    # Create a mock input tensor with a batch size of 1 and an image size of 600x600
-    input_tensor = torch.randn(1, 3, 600, 600)
-    
-    # Profile memory usage
-    if torch.cuda.is_available():
-        profile_memory(model, input_tensor)
-    else:
-        print("CUDA is not available. Memory profiling requires a GPU.")
-  
-# class TestDARTSBackbone(unittest.TestCase):
-#     def setUp(self):
-#         # Initialize the DARTSBackbone with 14 cells and necessary parameters
-#         self.backbone = DARTSBackbone(C=8, layers=14, steps=4, multiplier=1, stem_multiplier=1)
-        
-#         # Create a mock input tensor with a batch size of 1 and image size of 600x600
-#         self.input_tensor = torch.randn(1, 3, 600, 600)
-
-#     def test_output_shapes(self):
-#         """Test if the outputs of the backbone have the expected shapes."""
-#         C2, C3, C4 = self.backbone(self.input_tensor)
-        
-#         # Print shapes for debugging
-#         print(f"C2 shape: {C2.shape}")
-#         print(f"C3 shape: {C3.shape}")
-#         print(f"C4 shape: {C4.shape}")
-
-#         # Check if the output shapes are valid
-#         self.assertIsInstance(C2, torch.Tensor, "C2 output is not a tensor")
-#         self.assertIsInstance(C3, torch.Tensor, "C3 output is not a tensor")
-#         self.assertIsInstance(C4, torch.Tensor, "C4 output is not a tensor")
-        
-#         # Expected sizes considering downsampling after reduction cells
-#         # C2 (after cell 6), C3 (after cell 10), C4 (final output after cell 14)
-#         self.assertEqual(C2.shape[2:], (150, 150), "C2 output has incorrect spatial size")
-#         self.assertEqual(C3.shape[2:], (75, 75), "C3 output has incorrect spatial size")
-#         self.assertEqual(C4.shape[2:], (75, 75), "C4 output has incorrect spatial size")
-
-# if __name__ == '__main__':
-#     unittest.main(verbosity=2)  # Set verbosity for detailed test output

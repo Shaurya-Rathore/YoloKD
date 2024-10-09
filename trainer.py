@@ -86,7 +86,7 @@ hook_handle = layer.register_forward_hook(forward_hook)
 #teacher.load_state_dict(torch.load('/YoloKD/yolowts.pt'))
 #img_path = "C:\\Users\\Shaurya\\Pictures\\aadhaar page 1.jpg"
 with torch.no_grad():  # No gradient computation is needed
-    output = teacher.predict(tensor)
+    output = teacher.predict(args.img_dir)
 
 # print("Final Output:", output)  # This is the model's output
 
@@ -160,6 +160,7 @@ def main():
     for epoch in range(args.epochs):
         scheduler.step()
         logging.info('epoch %d lr %e', epoch, scheduler.get_lr()[0])
+        print("before training")
         model.drop_path_prob = args.drop_path_prob * epoch / args.epochs
         train_acc, train_obj = train(train_queue, model, teacher, criterion, optimizer, args)
         logging.info('train_acc %f', train_acc)
@@ -172,10 +173,10 @@ def train(train_queue, model, teacher, criterion, optimizer, args):
     objs = ultralytics.nn.modules.darts_utils.AvgrageMeter()
     top1 = ultralytics.nn.modules.darts_utils.AvgrageMeter()
     top5 = ultralytics.nn.modules.darts_utils.AvgrageMeter()
-    
+    print("training")
     teacher.eval()
     model.train()
-
+    print(len(train_queue))
     for step, (input, target) in enumerate(train_queue):
         input, target = input.cuda(), target.cuda()
         optimizer.zero_grad()
