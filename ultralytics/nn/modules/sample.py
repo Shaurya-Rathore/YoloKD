@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 from torch.autograd import Variable
-from model_search import Network  
+from model_search import YOLOv8StudentModel 
 
 def test_network():
     # Define hyperparameters
@@ -11,7 +11,7 @@ def test_network():
     criterion = nn.CrossEntropyLoss()  # Loss function
 
     # Create the network (CPU only)
-    model = Network(C, num_classes, layers, criterion)
+    model = YOLOv8StudentModel(num_classes, C=64, layers=14, steps=4, multiplier=4, stem_multiplier=3)
 
     # Create a sample input (batch_size=2, input_channels=3, height=32, width=32)
     batch_size = 2
@@ -24,16 +24,19 @@ def test_network():
     labels = torch.randint(0, num_classes, (batch_size,))  # CPU tensor
 
     # Forward pass
-    logits = model(x)  # Unpack the tuple returned by forward()
-    print(f"Output shape: {logits.shape}")
+    bbox_preds, obj_preds, cls_preds = model(x)  # Unpack the tuple returned by forward()
+    #print(f"Output shape: {logits.shape}")
+    print("bbox",bbox_preds) 
+    print("obj",obj_preds)
+    print("cls",cls_preds)
 
     # Calculate loss
-    loss = model._loss(x, labels)
-    print(f"Loss: {loss.item()}")
+    #loss = model._loss(x, labels)
+    #print(f"Loss: {loss.item()}")
 
     # Print the genotype
-    genotype = model.genotype()
-    print(f"Genotype: {genotype}")
+    #genotype = model.genotype()
+    #print(f"Genotype: {genotype}")
 
 if __name__ == "__main__":
     test_network()
