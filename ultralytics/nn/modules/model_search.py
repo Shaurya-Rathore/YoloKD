@@ -628,10 +628,10 @@ class YOLOv8StudentModel(nn.Module):
     
     # Example: The channels from the backbone after feature extraction
     # Assuming C3 and C4 feature maps from backbone
-    backbone_out_channels = [C * multiplier * 4, C * multiplier * 8]  # Example for C3 and C4
+    backbone_out_channels = [C*multiplier*2,C * multiplier * 4, C * multiplier * 8]  # Example for C3 and C4
 
     # Neck that fuses multi-scale feature maps
-    self.neck = NeckFPN(in_channels_list=backbone_out_channels, out_channels=256)  # Assuming output to be 256 channels
+    self.neck = NeckFPN(in_channels=backbone_out_channels)  # Assuming output to be 256 channels
     
     # Detection head for predicting bounding boxes, objectness scores, and class probabilities
     self.detect_head = Detect(nc=num_classes, ch=[256])  # Input channels are 256 from the neck
@@ -650,13 +650,13 @@ class YOLOv8StudentModel(nn.Module):
     features = self.backbone(x)
     
     # Assuming the backbone returns two feature maps (C3 and C4)
-    C3, C4 = features[0], features[1]  # Take feature maps for fusion
+    C2,C3, C4 = features[0], features[1],features[2]  # Take feature maps for fusion
     
     # Step 2: Pass feature maps through the neck for multi-scale fusion
-    fused_features = self.neck(C3, C4)
+    fused_features = self.neck(C2,C3,C4)
     
     # Step 3: Predict bounding boxes, objectness, and class scores
-    bbox_preds, obj_preds, cls_preds = self.detect_head(fused_features)
+    bbox_preds, obj_preds, cls_preds = self.detect_head(list(fused_features))
     
     return bbox_preds, obj_preds, cls_preds
   
