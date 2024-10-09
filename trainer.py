@@ -71,8 +71,8 @@ args = parser.parse_args()
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 # Initialize the teacher model
-teacher = YOLO('yolov8m.yaml')
-model_state_dict = torch.load("/kaggle/input/yolov8m-pt/yolov8m.pt")
+teacher = YOLO('yolov8m.yaml',  pretrained='yolov8m.pt')
+# model_state_dict = torch.load("/kaggle/input/yolov8m-pt/yolov8m.pt")
 teacher.to(device)
 
 tensor = torch.rand(8,3,640,640)
