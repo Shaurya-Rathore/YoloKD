@@ -16,18 +16,27 @@ from ultralytics.nn.modules.dataloader import YOLOObjectDetectionDataset
 from ultralytics import YOLO
 from ultralytics.utils.loss import DFLoss, BboxLoss
 import wandb
+import numpy as np
 from torch.autograd import Variable
 #from ultralytics.nn.modules.model import DARTSModel as Network
 
 wandb.init(mode='disabled')
 
 outputs = []
+def get_shapes(obj):
+    if isinstance(obj, torch.Tensor):
+        return obj.shape  # Return shape of the tensor
+    elif isinstance(obj, list):
+        return [get_shapes(o) for o in obj]  # Recursively check lists
+    elif isinstance(obj, tuple):
+        return tuple(get_shapes(o) for o in obj)  # Recursively check tuples
+    else:
+        return None
 
 def forward_hook(module, input, output):
-    print(input)
-    print(f"Forward hook activated! Layer: {module}")
-    print(f"Input shape: {input[0].shape}")
-    print(f"Output shape: {output.shape}")
+    if isinstance(output, tuple):
+        output = output[0]
+    #outputs = module.postprocess(output, max_det=module.max_det, nc=module.nc)
     outputs.append(output)
 
 # Argument Parsing
@@ -62,23 +71,26 @@ args = parser.parse_args()
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 # Initialize the teacher model
-teacher = YOLO('yolov8m.yaml')
+teacher = YOLO('yolov8m.pt')
 teacher.to(device)
+
+tensor = torch.rand(8,3,640,640)
 # for name, layer in teacher.named_modules():
 #     print(name, layer)
-# layer = getattr(teacher.model.model, '22').cv3[2][1].conv
+layer = getattr(teacher.model.model, '22')
 # print(layer)
-#hook_handle = layer.register_forward_hook(forward_hook)
-hooks = []
-for name, layer in teacher.model.named_modules():
-    hooks.append(layer.register_forward_hook(forward_hook))
+hook_handle = layer.register_forward_hook(forward_hook)
+# hooks = []
+# for name, layer in teacher.model.named_modules():
+#     hooks.append(layer.register_forward_hook(forward_hook))
 #teacher.load_state_dict(torch.load('/YoloKD/yolowts.pt'))
 #img_path = "C:\\Users\\Shaurya\\Pictures\\aadhaar page 1.jpg"
 with torch.no_grad():  # No gradient computation is needed
     output = teacher.predict(args.img_dir)
 
-print("Final Output:", output)  # This is the model's output
-print("Captured Output from the Hook:", outputs)
+# print("Final Output:", output)  # This is the model's output
+
+print("Captured Output from the Hook:", get_shapes(outputs))
 # Experiment setup
 args.save = 'eval-{}-{}'.format(args.save, time.strftime("%Y%m%d-%H%M%S"))
 ultralytics.nn.modules.darts_utils.create_exp_dir(args.save, scripts_to_save=glob.glob('*.py'))
@@ -129,7 +141,7 @@ def main():
     logging.info('gpu device = %d' % args.gpu)
     logging.info("args = %s", args)
 
-    genotype = eval("genotypes.%s" % args.arch)
+    genotype = eval("ultralytics.nn.modules.genotypes.%s" % args.arch)
     model = YOLO('yolov8n')
     model = model.cuda()
     logging.info("param size = %fMB", ultralytics.nn.modules.darts_utils.count_parameters_in_MB(model))
@@ -137,7 +149,7 @@ def main():
     criterion = YOLOLoss().cuda()
     optimizer = torch.optim.SGD(model.parameters(), lr=args.learning_rate, momentum=args.momentum, weight_decay=args.weight_decay)
 
-    train_data = YOLOObjectDetectionDataset(img_dir=args.img_dir, label_dir=args.label_dir, classes=['sheep', 'cattle', 'seal', 'camelus', 'kiang', 'zebra'], transform=ultralytics.nn.modules.darts_utils.train_transform)
+    train_data = YOLOObjectDetectionDataset(img_dir=args.img_dir, label_dir=args.label_dir, classes=['sheep', 'cattle', 'seal', 'camelus', 'kiang', 'zebra'], transform=ultralytics.nn.modules.darts_utils._data_transforms_WAID)
     train_queue = torch.utils.data.DataLoader(train_data, batch_size=args.batch_size, pin_memory=True, num_workers=2)
 
     valid_data = YOLOObjectDetectionDataset(img_dir=args.val_img_dir, label_dir=args.val_label_dir, classes=['sheep', 'cattle', 'seal', 'camelus', 'kiang', 'zebra'], transform=ultralytics.nn.modules.darts_utils._val_data_transforms_WAID(args))
@@ -148,6 +160,7 @@ def main():
     for epoch in range(args.epochs):
         scheduler.step()
         logging.info('epoch %d lr %e', epoch, scheduler.get_lr()[0])
+        print("before training")
         model.drop_path_prob = args.drop_path_prob * epoch / args.epochs
         train_acc, train_obj = train(train_queue, model, teacher, criterion, optimizer, args)
         logging.info('train_acc %f', train_acc)
@@ -160,10 +173,10 @@ def train(train_queue, model, teacher, criterion, optimizer, args):
     objs = ultralytics.nn.modules.darts_utils.AvgrageMeter()
     top1 = ultralytics.nn.modules.darts_utils.AvgrageMeter()
     top5 = ultralytics.nn.modules.darts_utils.AvgrageMeter()
-    
+    print("training")
     teacher.eval()
     model.train()
-
+    print(len(train_queue))
     for step, (input, target) in enumerate(train_queue):
         input, target = input.cuda(), target.cuda()
         optimizer.zero_grad()
