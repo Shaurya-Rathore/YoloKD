@@ -86,7 +86,7 @@ hook_handle = layer.register_forward_hook(forward_hook)
 #teacher.load_state_dict(torch.load('/YoloKD/yolowts.pt'))
 #img_path = "C:\\Users\\Shaurya\\Pictures\\aadhaar page 1.jpg"
 with torch.no_grad():  # No gradient computation is needed
-    output = teacher.predict(tensor)
+    output = teacher.predict(args.img_dir)
 
 # print("Final Output:", output)  # This is the model's output
 
@@ -176,7 +176,7 @@ def train(train_queue, model, teacher, criterion, optimizer, args):
     print("training")
     teacher.eval()
     model.train()
-
+    print(len(train_queue))
     for step, (input, target) in enumerate(train_queue):
         input, target = input.cuda(), target.cuda()
         optimizer.zero_grad()
