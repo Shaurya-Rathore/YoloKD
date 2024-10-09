@@ -73,23 +73,10 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 # Initialize the teacher model
 teacher = YOLO('yolov8m.yaml')
 # model_state_dict = torch.load("/kaggle/input/yolov8m-pt/yolov8m.pt")
-def init_weights(m):
-    if isinstance(m, nn.Conv2d):
-        nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
-        if m.bias is not None:
-            nn.init.constant_(m.bias, 0)
-    elif isinstance(m, nn.BatchNorm2d):
-        nn.init.constant_(m.weight, 1)
-        nn.init.constant_(m.bias, 0)
-    elif isinstance(m, nn.Linear):
-        nn.init.normal_(m.weight, 0, 0.01)
-        nn.init.constant_(m.bias, 0)
-
-# Apply the initialization function to the model
-teacher.apply(init_weights)
 teacher.to(device)
 
 tensor = torch.rand(8,3,640,640)
+tensor = tensor.to(device)
 # for name, layer in teacher.named_modules():
 #     print(name, layer)
 layer = getattr(teacher.model.model, '22')
@@ -101,7 +88,7 @@ hook_handle = layer.register_forward_hook(forward_hook)
 #teacher.load_state_dict(torch.load('/YoloKD/yolowts.pt'))
 #img_path = "C:\\Users\\Shaurya\\Pictures\\aadhaar page 1.jpg"
 with torch.no_grad():  # No gradient computation is needed
-    output = teacher.predict(args.img_dir)
+    output = teacher.predict(tensor)
 
 # print("Final Output:", output)  # This is the model's output
 
