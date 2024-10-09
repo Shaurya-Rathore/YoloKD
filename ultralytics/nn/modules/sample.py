@@ -1,6 +1,5 @@
 import torch
 import torch.nn as nn
-from torch.autograd import Variable
 from model_search import YOLOv8StudentModel 
 
 def test_network():
@@ -24,11 +23,9 @@ def test_network():
     labels = torch.randint(0, num_classes, (batch_size,))  # CPU tensor
 
     # Forward pass
-    bbox_preds, obj_preds, cls_preds = model(x)  # Unpack the tuple returned by forward()
+    bbox_preds = model(x)  # Unpack the tuple returned by forward()
     #print(f"Output shape: {logits.shape}")
     print("bbox",bbox_preds.shape) 
-    print("obj",obj_preds.shape)
-    print("cls",cls_preds.shape)
 
     # Calculate loss
     #loss = model._loss(x, labels)
