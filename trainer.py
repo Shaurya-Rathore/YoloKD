@@ -87,7 +87,7 @@ hook_handle = layer.register_forward_hook(forward_hook)
 #teacher.load_state_dict(torch.load('/YoloKD/yolowts.pt'))
 #img_path = "C:\\Users\\Shaurya\\Pictures\\aadhaar page 1.jpg"
 with torch.no_grad():  # No gradient computation is needed
-    output = teacher.predict(args.img_dir)
+    output = teacher(args.img_dir)
 
 # print("Final Output:", output)  # This is the model's output
 
