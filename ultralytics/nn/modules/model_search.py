@@ -483,7 +483,7 @@ class Detect(nn.Module):
     anchors = torch.empty(0)  # init
     strides = torch.empty(0)  # init
 
-    def __init__(self, nc=80, ch=()):
+    def __init__(self, nc=6, ch=()):
         """Initializes the YOLOv8 detection layer with specified number of classes and channels."""
         super().__init__()
         self.nc = nc  # number of classes
@@ -654,7 +654,7 @@ class YOLOv8StudentModel(nn.Module):
     
     # Step 2: Pass feature maps through the neck for multi-scale fusion
     fused_features = self.neck(C2,C3,C4)
-    
+    print("fusionnn",fused_features)
     # Step 3: Predict bounding boxes, objectness, and class scores
     bbox_preds, obj_preds, cls_preds = self.detect_head(list(fused_features))
     
