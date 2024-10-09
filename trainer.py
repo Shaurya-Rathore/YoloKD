@@ -17,6 +17,7 @@ from ultralytics import YOLO
 from ultralytics.utils.loss import DFLoss, BboxLoss
 import wandb
 import numpy as np
+import yaml
 from torch.autograd import Variable
 #from ultralytics.nn.modules.model import DARTSModel as Network
 
@@ -72,11 +73,12 @@ args = parser.parse_args()
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 # Initialize the teacher model
 teacher = YOLO('yolov8m.yaml')
-# model_state_dict = torch.load("/kaggle/input/yolov8m-pt/yolov8m.pt")
+checkpoint = torch.load('yolov8m.pt')  # Load pre-trained checkpoint
+teacher.load_state_dict(checkpoint['model'].state_dict(), strict=False)
+teacher.model.model[-1].nc = 6
+#model_state_dict = torch.load("/kaggle/input/yolov8m-pt/yolov8m.pt")
 teacher.to(device)
 
-tensor = torch.rand(8,3,640,640)
-tensor = tensor.to(device)
 # for name, layer in teacher.named_modules():
 #     print(name, layer)
 layer = getattr(teacher.model.model, '22')
@@ -88,7 +90,7 @@ hook_handle = layer.register_forward_hook(forward_hook)
 #teacher.load_state_dict(torch.load('/YoloKD/yolowts.pt'))
 #img_path = "C:\\Users\\Shaurya\\Pictures\\aadhaar page 1.jpg"
 with torch.no_grad():  # No gradient computation is needed
-    output = teacher.predict(tensor)
+    output = teacher.predict(args.img_dir)
 
 # print("Final Output:", output)  # This is the model's output
 
