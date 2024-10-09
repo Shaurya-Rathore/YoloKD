@@ -568,7 +568,9 @@ class YOLOv8StudentModel(nn.Module):
     backbone_out_channels = [C*multiplier*2,C * multiplier * 4, C * multiplier * 8]  # Example for C3 and C4
 
     # Neck that fuses multi-scale feature maps
-    self.neck = NeckFPN(in_channels=backbone_out_channels)  # Assuming output to be 256 channels
+    self.neck = NeckFPN(in_channels=backbone_out_channels) 
+    neck_out_channels = [256, 256, 256]  # Adjust based on your NeckFPN implementation
+    self.detect = Detect(nc=num_classes, ch=neck_out_channels)
      
 
   def forward(self, x):
@@ -590,6 +592,6 @@ class YOLOv8StudentModel(nn.Module):
     # Step 2: Pass feature maps through the neck for multi-scale fusion
     fused_features = self.neck(C2,C3,C4)
     # Step 3: Predict bounding boxes, objectness, and class scores
-    bbox_preds= Detect(6,fused_features)
+    bbox_preds= self.detect(list(fused_features))
 
     return bbox_preds
