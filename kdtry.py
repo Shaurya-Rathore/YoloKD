@@ -33,14 +33,14 @@ model.add_callback('on_train_batch_end', log_losses)
 # Train the model with the specified configuration and sync to W&B
 Result_Final_model = model.train(
     data="/kaggle/input/waiddataset/WAID-main/WAID-main/WAID/data.yaml",
-    epochs=1,
+    epochs=60,
     batch=8,
     warmup_epochs = 2,
     optimizer='auto',
     project='yolov8',
     save=True,
 )
-torch.save(model.model.state_dict(), "./yolov8_waid.pth")
+torch.save(model.model.state_dict(), "./yolov860_waid.pth")
 torch.cuda.empty_cache()
 
 # Finish the W&B run
