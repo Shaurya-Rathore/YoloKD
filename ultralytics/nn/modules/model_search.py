@@ -518,7 +518,7 @@ class Detect(nn.Module):
         return dist2bbox(bboxes, anchors, xywh=not self.end2end, dim=1)
 
     @staticmethod
-    def postprocess(preds: torch.Tensor, max_det: int, nc: int = 80):
+    def postprocess(preds: torch.Tensor, max_det: int, nc: int = 6):
         """
         Post-processes YOLO model predictions.
 
