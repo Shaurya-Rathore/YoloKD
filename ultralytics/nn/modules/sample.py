@@ -1,6 +1,5 @@
 import torch
 import torch.nn as nn
-from torch.autograd import Variable
 from model_search import YOLOv8StudentModel 
 
 def test_network():
