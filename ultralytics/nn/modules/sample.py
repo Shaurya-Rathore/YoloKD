@@ -6,7 +6,7 @@ from model_search import YOLOv8StudentModel
 def test_network():
     # Define hyperparameters
     C = 16  # Initial number of channels
-    num_classes = 10  # Number of output classes
+    num_classes = 6  # Number of output classes
     layers = 8  # Number of layers in the network
     criterion = nn.CrossEntropyLoss()  # Loss function
 
