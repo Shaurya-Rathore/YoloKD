@@ -160,6 +160,7 @@ def main():
     for epoch in range(args.epochs):
         scheduler.step()
         logging.info('epoch %d lr %e', epoch, scheduler.get_lr()[0])
+        print("before training")
         model.drop_path_prob = args.drop_path_prob * epoch / args.epochs
         train_acc, train_obj = train(train_queue, model, teacher, criterion, optimizer, args)
         logging.info('train_acc %f', train_acc)
@@ -172,7 +173,7 @@ def train(train_queue, model, teacher, criterion, optimizer, args):
     objs = ultralytics.nn.modules.darts_utils.AvgrageMeter()
     top1 = ultralytics.nn.modules.darts_utils.AvgrageMeter()
     top5 = ultralytics.nn.modules.darts_utils.AvgrageMeter()
-    
+    print("training")
     teacher.eval()
     model.train()
 
