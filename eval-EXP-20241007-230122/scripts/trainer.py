@@ -24,7 +24,6 @@ wandb.init(mode='disabled')
 outputs = []
 
 def forward_hook(module, input, output):
-    print(input)
     print(f"Forward hook activated! Layer: {module}")
     print(f"Input shape: {input[0].shape}")
     print(f"Output shape: {output.shape}")
@@ -32,10 +31,10 @@ def forward_hook(module, input, output):
 
 # Argument Parsing
 parser = argparse.ArgumentParser("WAID")
-parser.add_argument('--img_dir', type=str, default='/kaggle/input/ooga-dataset/ooga/ooga-main/ooga/images/train/', help='location of images')
-parser.add_argument('--label_dir', type=str, default='/kaggle/input/ooga-dataset/ooga/ooga-main/ooga/labels/train/', help='location labels')
-parser.add_argument('--val_img_dir', type=str, default='/kaggle/input/ooga-dataset/ooga/ooga-main/ooga/images/valid/', help='location of images')
-parser.add_argument('--val_label_dir', type=str, default='/kaggle/input/ooga-dataset/ooga/ooga-main/ooga/labels/valid/', help='location labels')
+parser.add_argument('--img_dir', type=str, default='/kaggle/input/waiddataset/WAID-main/WAID-main/WAID/images/train', help='location of images')
+parser.add_argument('--label_dir', type=str, default='/kaggle/input/waiddataset/WAID-main/WAID-main/WAID/labels/train', help='location labels')
+parser.add_argument('--val_img_dir', type=str, default='/kaggle/input/waiddataset/WAID-main/WAID-main/WAID/images/valid', help='location of images')
+parser.add_argument('--val_label_dir', type=str, default='/kaggle/input/waiddataset/WAID-main/WAID-main/WAID/labels/valid', help='location labels')
 parser.add_argument('--batch_size', type=int, default=96, help='batch size')
 parser.add_argument('--learning_rate', type=float, default=0.025, help='init learning rate')
 parser.add_argument('--momentum', type=float, default=0.9, help='momentum')
@@ -60,22 +59,18 @@ parser.add_argument('--ce_weight', type=float, default=0.1, help='weight for cro
 parser.add_argument('--temperature', type=float, default=3.0, help='temperature for distillation')
 args = parser.parse_args()
 
-device = 'cuda' if torch.cuda.is_available() else 'cpu'
 # Initialize the teacher model
-teacher = YOLO('yolov8m.yaml')
-teacher.to(device)
+teacher = YOLO('yolov8m.pt')
+teacher.to(device='cuda')
 # for name, layer in teacher.named_modules():
 #     print(name, layer)
-# layer = getattr(teacher.model.model, '22').cv3[2][1].conv
-# print(layer)
-#hook_handle = layer.register_forward_hook(forward_hook)
-hooks = []
-for name, layer in teacher.model.named_modules():
-    hooks.append(layer.register_forward_hook(forward_hook))
+layer = getattr(teacher.model.model, '22').cv3[2][1].conv
+print(layer)
+hook_handle = layer.register_forward_hook(forward_hook)
 #teacher.load_state_dict(torch.load('/YoloKD/yolowts.pt'))
-#img_path = "C:\\Users\\Shaurya\\Pictures\\aadhaar page 1.jpg"
+img_path = "C:\\Users\\Shaurya\\Pictures\\aadhaar page 1.jpg"
 with torch.no_grad():  # No gradient computation is needed
-    output = teacher.predict(args.img_dir)
+    output = teacher("C:\\Users\\Shaurya\\Pictures\\aadhaar page 1.jpg")
 
 print("Final Output:", output)  # This is the model's output
 print("Captured Output from the Hook:", outputs)
