@@ -411,7 +411,7 @@ class Detect(nn.Module):
 
     dynamic = False  # force grid reconstruction
     export = False  # export mode
-    end2end = False  # end2end
+    end2end = True  # end2end
     max_det = 300  # max_det
     shape = None
     anchors = torch.empty(0)  # init
@@ -422,9 +422,11 @@ class Detect(nn.Module):
         super().__init__()
         self.nc = nc  # number of classes
         self.nl = len(ch)  # number of detection layers
-        self.reg_max = 4  # DFL channels (ch[0] // 16 to scale 4/8/12/16/20 for n/s/m/l/x)
+        self.reg_max = 16  # DFL channels (ch[0] // 16 to scale 4/8/12/16/20 for n/s/m/l/x)
         self.no = nc + self.reg_max * 4  # number of outputs per anchor
         self.stride = torch.zeros(self.nl)  # strides computed during build
+        if isinstance(ch[0], torch.Tensor):
+            ch = [tensor.shape[1] for tensor in ch]  
         c2, c3 = max((16, ch[0] // 4, self.reg_max * 4)), max(ch[0], min(self.nc, 100))  # channels
         self.cv2 = nn.ModuleList(
             nn.Sequential(Conv(x, c2, 3), Conv(c2, c2, 3), nn.Conv2d(c2, 4 * self.reg_max, 1)) for x in ch
@@ -567,9 +569,7 @@ class YOLOv8StudentModel(nn.Module):
 
     # Neck that fuses multi-scale feature maps
     self.neck = NeckFPN(in_channels=backbone_out_channels)  # Assuming output to be 256 channels
-    
-    # Detection head for predicting bounding boxes, objectness scores, and class probabilities
-    self.detect_head = Detect(nc=num_classes, ch=[256,256,256]) 
+     
 
   def forward(self, x):
     """
@@ -589,8 +589,7 @@ class YOLOv8StudentModel(nn.Module):
     
     # Step 2: Pass feature maps through the neck for multi-scale fusion
     fused_features = self.neck(C2,C3,C4)
-    print("fusionnn",fused_features)
     # Step 3: Predict bounding boxes, objectness, and class scores
-    bbox_preds, obj_preds, cls_preds = self.detect_head(list(fused_features))
+    bbox_preds= Detect(6,fused_features)
 
-    return bbox_preds, obj_preds, cls_preds
+    return bbox_preds

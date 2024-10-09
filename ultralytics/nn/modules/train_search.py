@@ -4,7 +4,7 @@ import time
 import glob
 import numpy as np
 import torch
-import utils
+import darts_utils
 import logging
 import argparse
 import torch.nn as nn
@@ -16,7 +16,7 @@ import torch.backends.cudnn as cudnn
 from torch.autograd import Variable
 from model_search import Network
 from architect import Architect
-from dataloader import YOLOtoCustom
+from dataloader import YOLOObjectDetectionDataset
 
 
 parser = argparse.ArgumentParser("WAID")
@@ -48,7 +48,7 @@ parser.add_argument('--arch_weight_decay', type=float, default=1e-3, help='weigh
 args = parser.parse_args()
 
 args.save = 'search-{}-{}'.format(args.save, time.strftime("%Y%m%d-%H%M%S"))
-utils.create_exp_dir(args.save, scripts_to_save=glob.glob('*.py'))
+darts_utils.create_exp_dir(args.save, scripts_to_save=glob.glob('*.py'))
 
 log_format = '%(asctime)s %(message)s'
 logging.basicConfig(stream=sys.stdout, level=logging.INFO,
@@ -79,7 +79,7 @@ def main():
   criterion = criterion.cuda()
   model = Network(args.init_channels, WAID_CLASSES, args.layers, criterion)
   model = model.cuda()
-  logging.info("param size = %fMB", utils.count_parameters_in_MB(model))
+  logging.info("param size = %fMB", darts_utils.count_parameters_in_MB(model))
 
   optimizer = torch.optim.SGD(
       model.parameters(),
@@ -87,16 +87,16 @@ def main():
       momentum=args.momentum,
       weight_decay=args.weight_decay)
 
-  train_transform = utils._data_transforms_WAID(args)
+  train_transform = darts_utils._data_transforms_WAID(args)
   classes = ['sheep','cattle','seal','camelus','kiang','zebra']
-  train_data = YOLOtoCustom(img_dir = args.img_dir,label_dir=args.label_dir,classes = classes,transform=train_transform)
+  train_data = YOLOObjectDetectionDataset(img_dir = args.img_dir,label_dir=args.label_dir,classes = classes,transform=train_transform)
 
   train_queue = torch.utils.data.DataLoader(
       train_data, batch_size=args.batch_size,
       pin_memory=True, num_workers=2)
   
-  train_transform = utils._val_data_transforms_WAID(args)
-  valid_data = YOLOtoCustom(img_dir = args.val_img_dir,label_dir=args.val_label_dir,classes = classes,transform=val_transform)
+  val_transform = darts_utils._val_data_transforms_WAID(args)
+  valid_data = YOLOObjectDetectionDataset(img_dir = args.val_img_dir,label_dir=args.val_label_dir,classes = classes,transform=val_transform)
   valid_queue = torch.utils.data.DataLoader(
       valid_data, batch_size=args.batch_size,
       pin_memory=True, num_workers=2)
@@ -125,13 +125,13 @@ def main():
     valid_acc, valid_obj = infer(valid_queue, model, criterion)
     logging.info('valid_acc %f', valid_acc)
 
-    utils.save(model, os.path.join(args.save, 'weights.pt'))
+    darts_utils.save(model, os.path.join(args.save, 'weights.pt'))
 
 
 def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr):
-  objs = utils.AvgrageMeter()
-  top1 = utils.AvgrageMeter()
-  top5 = utils.AvgrageMeter()
+  objs = darts_utils.AvgrageMeter()
+  top1 = darts_utils.AvgrageMeter()
+  top5 = darts_utils.AvgrageMeter()
 
   for step, (input, target) in enumerate(train_queue):
     model.train()
@@ -155,7 +155,7 @@ def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr):
     nn.utils.clip_grad_norm(model.parameters(), args.grad_clip)
     optimizer.step()
 
-    prec1, prec5 = utils.accuracy(logits, target, topk=(1, 5))
+    prec1, prec5 = darts_utils.accuracy(logits, target, topk=(1, 5))
     objs.update(loss.data[0], n)
     top1.update(prec1.data[0], n)
     top5.update(prec5.data[0], n)
@@ -167,9 +167,9 @@ def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr):
 
 
 def infer(valid_queue, model, criterion):
-  objs = utils.AvgrageMeter()
-  top1 = utils.AvgrageMeter()
-  top5 = utils.AvgrageMeter()
+  objs = darts_utils.AvgrageMeter()
+  top1 = darts_utils.AvgrageMeter()
+  top5 = darts_utils.AvgrageMeter()
   model.eval()
 
   for step, (input, target) in enumerate(valid_queue):
@@ -179,7 +179,7 @@ def infer(valid_queue, model, criterion):
     logits = model(input)
     loss = criterion(logits, target)
 
-    prec1, prec5 = utils.accuracy(logits, target, topk=(1, 5))
+    prec1, prec5 = darts_utils.accuracy(logits, target, topk=(1, 5))
     n = input.size(0)
     objs.update(loss.data[0], n)
     top1.update(prec1.data[0], n)
