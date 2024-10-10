@@ -11,12 +11,13 @@ import torch.nn as nn
 import torch.utils
 import torch.nn.functional as F
 import torch.backends.cudnn as cudnn
+from torch.nn.utils.rnn import pad_sequence
 
 
 from torch.autograd import Variable
 from model_search import YOLOv8StudentModel
 from architect import Architect
-from dataloader import YOLOObjectDetectionDataset
+from dataloader import YOLOObjectDetectionDataset,custom_collate_fn
 
 
 parser = argparse.ArgumentParser("WAID")
@@ -60,6 +61,25 @@ logging.getLogger().addHandler(fh)
 
 WAID_CLASSES = 6
 
+"""def custom_collate(batch):
+    inputs, targets = zip(*batch)
+    
+    # Pad inputs to match the size of the largest tensor in the batch
+    inputs_padded = pad_sequence(inputs, batch_first=True)
+
+    # Handle dictionary-based targets and pad them if necessary
+    if isinstance(targets[0], dict):
+        targets_padded = {}
+        for key in targets[0].keys():
+            # Extract the list of tensors for this key
+            tensors_for_key = [t[key] for t in targets]
+            # Pad the tensors to make them the same size
+            targets_padded[key] = pad_sequence(tensors_for_key, batch_first=True)
+    else:
+        # If targets are simple tensors, pad them directly
+        targets_padded = pad_sequence(targets, batch_first=True)
+
+    return inputs_padded, targets_padded"""
 
 def main():
   if not torch.cuda.is_available():
@@ -93,13 +113,13 @@ def main():
 
   train_queue = torch.utils.data.DataLoader(
       train_data, batch_size=args.batch_size,
-      pin_memory=True, num_workers=2)
+      pin_memory=True, num_workers=2,collate_fn=custom_collate_fn)
   
   val_transform = darts_utils._val_data_transforms_WAID(args)
   valid_data = YOLOObjectDetectionDataset(img_dir = args.val_img_dir,label_dir=args.val_label_dir,classes = classes,transform=val_transform)
   valid_queue = torch.utils.data.DataLoader(
       valid_data, batch_size=args.batch_size,
-      pin_memory=True, num_workers=2)
+      pin_memory=True, num_workers=2,collate_fn=custom_collate_fn)
 
   scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
         optimizer, float(args.epochs), eta_min=args.learning_rate_min)

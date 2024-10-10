@@ -53,12 +53,34 @@ class YOLOObjectDetectionDataset(Dataset):
         # Convert labels to tensor
         labels = torch.tensor(labels)
 
-        # Create target dictionary
-        target = {}
-        target["boxes"] = labels[:, 1:] if len(labels) > 0 else torch.zeros((0, 4))
-        target["labels"] = labels[:, 0].long() if len(labels) > 0 else torch.zeros(0, dtype=torch.int64)
+        # Create target tensors
+        boxes = labels[:, 1:] if len(labels) > 0 else torch.zeros((0, 4))
+        labels = labels[:, 0].long() if len(labels) > 0 else torch.zeros(0, dtype=torch.int64)
 
-        return image, target
+        return image, boxes, labels
 
     def get_class_name(self, class_id):
         return self.classes[class_id]
+
+def custom_collate_fn(batch):
+    images = []
+    boxes = []
+    labels = []
+    for image, box, label in batch:
+        images.append(image)
+        boxes.append(box)
+        labels.append(label)
+    
+    images = torch.stack(images, 0)
+    
+    # Pad boxes and labels to have the same shape
+    max_objects = max(box.shape[0] for box in boxes)
+    padded_boxes = torch.zeros(len(boxes), max_objects, 4)
+    padded_labels = torch.zeros(len(labels), max_objects, dtype=torch.long)
+    
+    for i, (box, label) in enumerate(zip(boxes, labels)):
+        if box.numel() > 0:
+            padded_boxes[i, :box.shape[0], :] = box
+            padded_labels[i, :label.shape[0]] = label
+    
+    return images, padded_boxes, padded_labels
