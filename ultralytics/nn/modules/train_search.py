@@ -63,16 +63,37 @@ WAID_CLASSES = 6
 
 def custom_collate(batch):
     # Filter out any None samples
-    inputs, targets = zip(*batch)
+    batch = list(filter(lambda x: x is not None, batch))
     
-    # Pad inputs to match the size of the largest tensor
-    inputs_padded = pad_sequence(inputs, batch_first=True)
+    # Separate inputs and targets
+    inputs = [item[0] for item in batch]
+    targets = [item[1] for item in batch]
     
-    # Stack the targets directly (assuming they are of fixed size)
-    targets_stacked = torch.stack(targets)
+    # Pad inputs to the same size
+    max_h = max([inp.shape[0] for inp in inputs])
+    max_w = max([inp.shape[1] for inp in inputs])
+    padded_inputs = []
+    for inp in inputs:
+        pad_h = max_h - inp.shape[0]
+        pad_w = max_w - inp.shape[1]
+        padded_inp = F.pad(inp, (0, pad_w, 0, pad_h))
+        padded_inputs.append(padded_inp)
     
-    return inputs_padded, targets_stacked
-
+    # Stack inputs
+    inputs_stacked = torch.stack(padded_inputs)
+    
+    # Handle targets
+    if isinstance(targets[0], dict):
+        # If targets are dictionaries, create a list of dictionaries
+        targets_collated = targets
+    elif isinstance(targets[0], torch.Tensor):
+        # If targets are tensors, stack them
+        targets_collated = torch.stack(targets)
+    else:
+        # Handle other cases or raise an error
+        raise TypeError(f"Unsupported target type: {type(targets[0])}")
+    
+    return inputs_stacked, targets_collated
 
 def main():
   if not torch.cuda.is_available():
