@@ -61,7 +61,7 @@ logging.getLogger().addHandler(fh)
 
 WAID_CLASSES = 6
 
-def custom_collate_fn(batch):
+def custom_collate(batch):
     inputs, targets = zip(*batch)
     # Pad inputs to match the size of the largest tensor in the batch
     inputs_padded = pad_sequence(inputs, batch_first=True)
