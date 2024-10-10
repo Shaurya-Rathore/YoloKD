@@ -42,7 +42,7 @@ def forward_hook(module, input, output):
 
 # Argument Parsing
 parser = argparse.ArgumentParser("WAID")
-parser.add_argument('--img_dir', type=str, default='/kaggle/input/ooga-dataset/ooga/ooga-main/ooga/', help='location of images')
+parser.add_argument('--img_dir', type=str, default='/kaggle/input/ooga-dataset/ooga/ooga-main/ooga/data.yaml', help='location of images')
 parser.add_argument('--label_dir', type=str, default='/kaggle/input/ooga-dataset/ooga/ooga-main/ooga/labels/train/', help='location labels')
 parser.add_argument('--val_img_dir', type=str, default='/kaggle/input/ooga-dataset/ooga/ooga-main/ooga/images/valid/', help='location of images')
 parser.add_argument('--val_label_dir', type=str, default='/kaggle/input/ooga-dataset/ooga/ooga-main/ooga/labels/valid/', help='location labels')
@@ -72,7 +72,9 @@ args = parser.parse_args()
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 # Initialize the teacher model
-teacher = YOLO('yolov8m-LDConv.yaml')
+teacher = YOLO('yolov8m.pt')
+# teacher.model.model[-1].nc = 6
+# teacher.model.model[-1].no = 10
 #model_state_dict = torch.load("/kaggle/input/yolov8m-pt/yolov8m.pt")
 teacher.to(device)
 dummy = torch.rand(1,3,640,640)

@@ -42,7 +42,7 @@ def forward_hook(module, input, output):
 
 # Argument Parsing
 parser = argparse.ArgumentParser("WAID")
-parser.add_argument('--img_dir', type=str, default='/kaggle/input/ooga-dataset/ooga/ooga-main/ooga/', help='location of images')
+parser.add_argument('--img_dir', type=str, default='C:\\Users\\Shaurya\\Pictures\\aadhaar page 1.jpg', help='location of images')
 parser.add_argument('--label_dir', type=str, default='/kaggle/input/ooga-dataset/ooga/ooga-main/ooga/labels/train/', help='location labels')
 parser.add_argument('--val_img_dir', type=str, default='/kaggle/input/ooga-dataset/ooga/ooga-main/ooga/images/valid/', help='location of images')
 parser.add_argument('--val_label_dir', type=str, default='/kaggle/input/ooga-dataset/ooga/ooga-main/ooga/labels/valid/', help='location labels')

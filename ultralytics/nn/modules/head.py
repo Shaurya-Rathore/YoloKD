@@ -33,7 +33,7 @@ class Detect(nn.Module):
         super().__init__()
         self.nc = nc  # number of classes
         self.nl = len(ch)  # number of detection layers
-        self.reg_max = 16  # DFL channels (ch[0] // 16 to scale 4/8/12/16/20 for n/s/m/l/x)
+        self.reg_max = 12  # DFL channels (ch[0] // 16 to scale 4/8/12/16/20 for n/s/m/l/x)
         self.no = nc + self.reg_max * 4  # number of outputs per anchor
         self.stride = torch.zeros(self.nl)  # strides computed during build
         c2, c3 = max((16, ch[0] // 4, self.reg_max * 4)), max(ch[0], min(self.nc, 100))  # channels
@@ -53,6 +53,8 @@ class Detect(nn.Module):
             return self.forward_end2end(x)
 
         for i in range(self.nl):
+            moo = self.cv2[i](x[i])
+            print(f'cv2 shape {moo.shape}')
             x[i] = torch.cat((self.cv2[i](x[i]), self.cv3[i](x[i])), 1)
         if self.training:  # Training path
             return x
@@ -87,7 +89,10 @@ class Detect(nn.Module):
         """Decode predicted bounding boxes and class probabilities based on multiple-level feature maps."""
         # Inference path
         shape = x[0].shape  # BCHW
+        print(f"Input tensor shape: {shape}")
+        print(f"Expected shape: {[shape[0], self.no, -1]}")
         x_cat = torch.cat([xi.view(shape[0], self.no, -1) for xi in x], 2)
+        print(f'x_cat {x_cat.shape}')
         if self.dynamic or self.shape != shape:
             self.anchors, self.strides = (x.transpose(0, 1) for x in make_anchors(x, self.stride, 0.5))
             self.shape = shape
@@ -589,38 +594,38 @@ class v10Detect(Detect):
         self.one2one_cv3 = copy.deepcopy(self.cv3)
 
 
-from torchsummary import summary
+# from torchsummary import summary
 
-# Assuming Detect class is already defined, as provided in your code
-class Conv(nn.Module):
-    def __init__(self, c_in, c_out, kernel_size, stride=1, padding=1):
-        super(Conv, self).__init__()
-        self.conv = nn.Conv2d(c_in, c_out, kernel_size, stride, padding, bias=False)
-        self.bn = nn.BatchNorm2d(c_out)
-        self.relu = nn.ReLU(inplace=True)
+# # Assuming Detect class is already defined, as provided in your code
+# class Conv(nn.Module):
+#     def __init__(self, c_in, c_out, kernel_size, stride=1, padding=1):
+#         super(Conv, self).__init__()
+#         self.conv = nn.Conv2d(c_in, c_out, kernel_size, stride, padding, bias=False)
+#         self.bn = nn.BatchNorm2d(c_out)
+#         self.relu = nn.ReLU(inplace=True)
 
-    def forward(self, x):
-        return self.relu(self.bn(self.conv(x)))
+#     def forward(self, x):
+#         return self.relu(self.bn(self.conv(x)))
 
-class DFL(nn.Module):
-    def __init__(self, reg_max):
-        super(DFL, self).__init__()
-        self.fc = nn.Linear(reg_max, reg_max)
+# class DFL(nn.Module):
+#     def __init__(self, reg_max):
+#         super(DFL, self).__init__()
+#         self.fc = nn.Linear(reg_max, reg_max)
 
-    def forward(self, x):
-        return self.fc(x)
+#     def forward(self, x):
+#         return self.fc(x)
 
-# Define number of classes and channels for testing
-nc = 6 # Number of classes
-ch = [128, 256, 512, 1024]  # List of channels for different detection levels
+# # Define number of classes and channels for testing
+# nc = 6 # Number of classes
+# ch = [256, 512, 1024]  # List of channels for different detection levels
 
-# Instantiate the Detect class
-detect_model = Detect(nc=nc, ch=ch)
+# # Instantiate the Detect class
+# detect_model = Detect(nc=nc, ch=ch)
 
-# Move model to the appropriate device (CPU in this case)
-device = torch.device("cpu")
-detect_model.to(device)
+# # Move model to the appropriate device (CPU in this case)
+# device = torch.device("cpu")
+# detect_model.to(device)
 
-# Print the number of parameters
-total_params = sum(p.numel() for p in detect_model.parameters() if p.requires_grad)
-print(f"Total trainable parameters in the Detect model: {total_params}")
+# # Print the number of parameters
+# total_params = sum(p.numel() for p in detect_model.parameters() if p.requires_grad)
+# print(f"Total trainable parameters in the Detect model: {total_params}")
