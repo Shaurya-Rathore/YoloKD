@@ -572,6 +572,17 @@ class YOLOv8StudentModel(nn.Module):
     self.neck = NeckFPN(in_channels=backbone_out_channels) 
     neck_out_channels = [256, 256, 256]  # Adjust based on your NeckFPN implementation
     self.detect = Detect(nc=num_classes, ch=neck_out_channels)
+
+  def _initialize_alphas(self):
+    k = sum(1 for i in range(self._steps) for n in range(2+i))
+    num_ops = len(PRIMITIVES)
+
+    self.alphas_normal = nn.Parameter(1e-3*torch.randn(k, num_ops))
+    self.alphas_reduce = nn.Parameter(1e-3*torch.randn(k, num_ops))
+    self._arch_parameters = [
+      self.alphas_normal,
+      self.alphas_reduce,
+    ]
   
   def genotype(self):
 
