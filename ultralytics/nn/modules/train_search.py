@@ -61,8 +61,9 @@ logging.getLogger().addHandler(fh)
 
 WAID_CLASSES = 6
 
-def custom_collate(batch):
+"""def custom_collate(batch):
     inputs, targets = zip(*batch)
+    
     # Pad inputs to match the size of the largest tensor in the batch
     inputs_padded = pad_sequence(inputs, batch_first=True)
 
@@ -78,7 +79,7 @@ def custom_collate(batch):
         # If targets are simple tensors, pad them directly
         targets_padded = pad_sequence(targets, batch_first=True)
 
-    return inputs_padded, targets_padded
+    return inputs_padded, targets_padded"""
 
 def main():
   if not torch.cuda.is_available():
@@ -112,13 +113,13 @@ def main():
 
   train_queue = torch.utils.data.DataLoader(
       train_data, batch_size=args.batch_size,
-      pin_memory=True, num_workers=2,collate_fn=custom_collate)
+      pin_memory=True, num_workers=2)
   
   val_transform = darts_utils._val_data_transforms_WAID(args)
   valid_data = YOLOObjectDetectionDataset(img_dir = args.val_img_dir,label_dir=args.val_label_dir,classes = classes,transform=val_transform)
   valid_queue = torch.utils.data.DataLoader(
       valid_data, batch_size=args.batch_size,
-      pin_memory=True, num_workers=2,collate_fn=custom_collate)
+      pin_memory=True, num_workers=2)
 
   scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
         optimizer, float(args.epochs), eta_min=args.learning_rate_min)
