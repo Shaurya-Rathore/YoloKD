@@ -247,5 +247,7 @@ def infer(valid_queue, model, criterion):
     return top1.avg, objs.avg
 
 if __name__ == '__main__':
-    print('main')
-    main()
+    try:
+        main()
+    except Exception as e:
+        print(f"An error occurred: {e}")
