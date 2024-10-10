@@ -562,7 +562,7 @@ class YOLOv8StudentModel(nn.Module):
     
     # DARTS-based backbone with 14 layers (3 reduction cells)
     self.backbone = DARTSBackbone(C=C, layers=layers, steps=steps, multiplier=multiplier, stem_multiplier=stem_multiplier)
-    self._arch_parameters = DARTSBackbone.arch_parameters()
+    self._arch_parameters = self.backbone.arch_parameters()
 
     
     # Example: The channels from the backbone after feature extraction
