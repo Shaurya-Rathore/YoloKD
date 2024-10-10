@@ -72,8 +72,9 @@ def custom_collate(batch):
         targets_stacked = {key: torch.stack([t[key] for t in targets]) for key in targets[0].keys()}
     else:
         targets_stacked = torch.stack(targets)
+    targets_padded = pad_sequence(targets_stacked, batch_first=True)
     
-    return inputs_padded, targets_stacked
+    return inputs_padded, targets_padded
 
 def main():
   if not torch.cuda.is_available():
