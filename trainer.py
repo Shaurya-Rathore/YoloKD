@@ -135,9 +135,6 @@ class YOLOLoss(nn.Module):
 
 # Main function
 def main():
-    if not torch.cuda.is_available():
-        logging.info('no gpu device available')
-        sys.exit(1)
     print('in here')
     teacher = YOLO('yolov8-LDconv.yaml')
     model_state_dict = torch.load("/kaggle/input/yolov8m-pt/yolov8m.pt")
