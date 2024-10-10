@@ -61,19 +61,23 @@ logging.getLogger().addHandler(fh)
 
 WAID_CLASSES = 6
 
-def custom_collate(batch):
+def custom_collate_fn(batch):
     inputs, targets = zip(*batch)
-    
-    # Handle inputs: Pad them to match the largest tensor in the batch
+    # Pad inputs to match the size of the largest tensor in the batch
     inputs_padded = pad_sequence(inputs, batch_first=True)
-    
-    # Handle targets: If targets are dictionaries, stack their tensor values
+
+    # Handle dictionary-based targets and pad them if necessary
     if isinstance(targets[0], dict):
-        targets_stacked = {key: torch.stack([t[key] for t in targets]) for key in targets[0].keys()}
+        targets_padded = {}
+        for key in targets[0].keys():
+            # Extract the list of tensors for this key
+            tensors_for_key = [t[key] for t in targets]
+            # Pad the tensors to make them the same size
+            targets_padded[key] = pad_sequence(tensors_for_key, batch_first=True)
     else:
-        targets_stacked = torch.stack(targets)
-    targets_padded = pad_sequence(targets_stacked, batch_first=True)
-    
+        # If targets are simple tensors, pad them directly
+        targets_padded = pad_sequence(targets, batch_first=True)
+
     return inputs_padded, targets_padded
 
 def main():
