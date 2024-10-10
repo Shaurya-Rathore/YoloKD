@@ -69,8 +69,8 @@ def _data_transforms_WAID(args):
     transforms.ToTensor(),
     transforms.Normalize(WAID_MEAN, WAID_STD),
   ])
-  if args.cutout:
-    train_transform.transforms.append(Cutout(args.cutout_length))
+  #if args.cutout:
+    #train_transform.transforms.append(Cutout(args.cutout_length))
 
   return train_transform
 
