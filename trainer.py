@@ -93,8 +93,8 @@ with torch.no_grad():  # No gradient computation is needed
 
 print("Captured Output from the Hook:", get_shapes(outputs))
 # Experiment setup
-args.save = 'eval-{}-{}'.format(args.save, time.strftime("%Y%m%d-%H%M%S"))
-ultralytics.nn.modules.darts_utils.create_exp_dir(args.save, scripts_to_save=glob.glob('*.py'))
+# args.save = 'eval-{}-{}'.format(args.save, time.strftime("%Y%m%d-%H%M%S"))
+# ultralytics.nn.modules.darts_utils.create_exp_dir(args.save, scripts_to_save=glob.glob('*.py'))
 
 log_format = '%(asctime)s %(message)s'
 logging.basicConfig(stream=sys.stdout, level=logging.INFO, format=log_format, datefmt='%m/%d %I:%M:%S %p')
