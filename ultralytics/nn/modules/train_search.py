@@ -17,7 +17,7 @@ from torch.nn.utils.rnn import pad_sequence
 from torch.autograd import Variable
 from model_search import YOLOv8StudentModel
 from architect import Architect
-from dataloader import YOLOObjectDetectionDataset
+from dataloader import YOLOObjectDetectionDataset,custom_collate_fn
 
 
 parser = argparse.ArgumentParser("WAID")
@@ -113,13 +113,13 @@ def main():
 
   train_queue = torch.utils.data.DataLoader(
       train_data, batch_size=args.batch_size,
-      pin_memory=True, num_workers=2)
+      pin_memory=True, num_workers=2,collate_fn=custom_collate_fn)
   
   val_transform = darts_utils._val_data_transforms_WAID(args)
   valid_data = YOLOObjectDetectionDataset(img_dir = args.val_img_dir,label_dir=args.val_label_dir,classes = classes,transform=val_transform)
   valid_queue = torch.utils.data.DataLoader(
       valid_data, batch_size=args.batch_size,
-      pin_memory=True, num_workers=2)
+      pin_memory=True, num_workers=2,collate_fn=custom_collate_fn)
 
   scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
         optimizer, float(args.epochs), eta_min=args.learning_rate_min)
