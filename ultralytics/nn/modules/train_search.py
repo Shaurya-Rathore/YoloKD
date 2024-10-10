@@ -11,6 +11,7 @@ import torch.nn as nn
 import torch.utils
 import torch.nn.functional as F
 import torch.backends.cudnn as cudnn
+from torch.nn.utils.rnn import pad_sequence
 
 
 from torch.autograd import Variable
