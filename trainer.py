@@ -72,40 +72,42 @@ args = parser.parse_args()
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 # Initialize the teacher model
-teacher = YOLO('yolov8-LDconv.yaml')
-#model_state_dict = torch.load("/kaggle/input/yolov8m-pt/yolov8m.pt")
-teacher.to(device)
-dummy = torch.rand(1,3,640,640)
-# for name, layer in teacher.named_modules():
-#     print(name, layer)
-layer = getattr(teacher.model.model, '22')
-# print(layer)
-hook_handle = layer.register_forward_hook(forward_hook)
-# hooks = []
-# for name, layer in teacher.model.named_modules():
-#     hooks.append(layer.register_forward_hook(forward_hook))
-#teacher.load_state_dict(torch.load('/YoloKD/yolowts.pt'))
-#img_path = "C:\\Users\\Shaurya\\Pictures\\aadhaar page 1.jpg"
-with torch.no_grad():  # No gradient computation is needed
-    output = teacher(dummy)
+# teacher = YOLO('yolov8-LDconv.yaml')
+# #model_state_dict = torch.load("/kaggle/input/yolov8m-pt/yolov8m.pt")
+# teacher.to(device)
+# dummy = torch.rand(1,3,640,640)
+# # for name, layer in teacher.named_modules():
+# #     print(name, layer)
+# layer = getattr(teacher.model.model, '22')
+# # print(layer)
+# hook_handle = layer.register_forward_hook(forward_hook)
+# # hooks = []
+# # for name, layer in teacher.model.named_modules():
+# #     hooks.append(layer.register_forward_hook(forward_hook))
+# #teacher.load_state_dict(torch.load('/YoloKD/yolowts.pt'))
+# #img_path = "C:\\Users\\Shaurya\\Pictures\\aadhaar page 1.jpg"
+# with torch.no_grad():  # No gradient computation is needed
+#     output = teacher(dummy)
 
-# print("Final Output:", output)  # This is the model's output
+# # print("Final Output:", output)  # This is the model's output
 
-print("Captured Output from the Hook:", get_shapes(outputs))
-# Experiment setup
-try:
-    args.save = 'eval-{}-{}'.format(args.save, time.strftime("%Y%m%d-%H%M%S"))
-    ultralytics.nn.modules.darts_utils.create_exp_dir(args.save, scripts_to_save=glob.glob('*.py'))
+# print("Captured Output from the Hook:", get_shapes(outputs))
+# # Experiment setup
+# try:
+#     args.save = 'eval-{}-{}'.format(args.save, time.strftime("%Y%m%d-%H%M%S"))
+#     ultralytics.nn.modules.darts_utils.create_exp_dir(args.save, scripts_to_save=glob.glob('*.py'))
     
-    log_format = '%(asctime)s %(message)s'
-    logging.basicConfig(stream=sys.stdout, level=logging.INFO, format=log_format, datefmt='%m/%d %I:%M:%S %p')
+#     log_format = '%(asctime)s %(message)s'
+#     logging.basicConfig(stream=sys.stdout, level=logging.INFO, format=log_format, datefmt='%m/%d %I:%M:%S %p')
 
-    fh = logging.FileHandler(os.path.join(args.save, 'log.txt'))
-    fh.setFormatter(logging.Formatter(log_format))
-    logging.getLogger().addHandler(fh)
-except Exception as e:
-    print(f"Logging setup failed: {e}")
-    sys.exit(1)
+#     fh = logging.FileHandler(os.path.join(args.save, 'log.txt'))
+#     fh.setFormatter(logging.Formatter(log_format))
+#     logging.getLogger().addHandler(fh)
+# except Exception as e:
+#     print(f"Logging setup failed: {e}")
+#     sys.exit(1)
+
+# print('broo')
 # YOLO Loss Class
 class YOLOLoss(nn.Module):
     def __init__(self, lambda_bbox=5.0, lambda_obj=1.0, lambda_noobj=0.5, lambda_class=1.0):
@@ -137,6 +139,9 @@ def main():
         logging.info('no gpu device available')
         sys.exit(1)
 
+    teacher = YOLO('yolov8-LDconv.yaml')
+    model_state_dict = torch.load("/kaggle/input/yolov8m-pt/yolov8m.pt")
+    teacher.to(device)
     np.random.seed(args.seed)
     torch.cuda.set_device(args.gpu)
     cudnn.benchmark = True
@@ -147,7 +152,7 @@ def main():
     logging.info("args = %s", args)
 
     genotype = eval("ultralytics.nn.modules.genotypes.%s" % args.arch)
-    model = YOLO('yolov8n')
+    model = YOLO('yolov8n.yaml')
     model = model.cuda()
     logging.info("param size = %fMB", ultralytics.nn.modules.darts_utils.count_parameters_in_MB(model))
 
@@ -241,4 +246,5 @@ def infer(valid_queue, model, criterion):
     return top1.avg, objs.avg
 
 if __name__ == '__main__':
+    print('main')
     main()
