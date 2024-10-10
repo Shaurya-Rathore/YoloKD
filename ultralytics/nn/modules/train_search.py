@@ -60,6 +60,30 @@ logging.getLogger().addHandler(fh)
 
 WAID_CLASSES = 6
 
+def custom_collate(batch):
+    # Filter out any None samples
+    batch = list(filter(lambda x: x is not None, batch))
+    
+    # Separate inputs and targets
+    inputs = [item[0] for item in batch]
+    targets = [item[1] for item in batch]
+    
+    # Pad inputs to the same size
+    max_h = max([inp.shape[0] for inp in inputs])
+    max_w = max([inp.shape[1] for inp in inputs])
+    padded_inputs = []
+    for inp in inputs:
+        pad_h = max_h - inp.shape[0]
+        pad_w = max_w - inp.shape[1]
+        padded_inp = F.pad(inp, (0, pad_w, 0, pad_h))
+        padded_inputs.append(padded_inp)
+    
+    # Stack inputs and targets
+    inputs = torch.stack(padded_inputs)
+    targets = torch.stack(targets)
+    
+    return inputs, targets
+
 
 def main():
   if not torch.cuda.is_available():
@@ -96,7 +120,7 @@ def main():
       pin_memory=True, num_workers=2)
   
   val_transform = darts_utils._val_data_transforms_WAID(args)
-  valid_data = YOLOObjectDetectionDataset(img_dir = args.val_img_dir,label_dir=args.val_label_dir,classes = classes,transform=val_transform)
+  valid_data = YOLOObjectDetectionDataset(img_dir = args.val_img_dir,label_dir=args.val_label_dir,classes = classes,transform=val_transform,collate_fn=custom_collate)
   valid_queue = torch.utils.data.DataLoader(
       valid_data, batch_size=args.batch_size,
       pin_memory=True, num_workers=2)
