@@ -23,7 +23,15 @@ from torch.autograd import Variable
 
 wandb.init(mode='disabled')
 
-outputs = []
+outputs_teacher = []
+outputs_student = []
+
+def forward_hook_teacher(module, input, output):
+    outputs_teacher.append(output)
+
+def forward_hook_student(module, input, output):
+    outputs_student.append(output)
+
 def get_shapes(obj):
     if isinstance(obj, torch.Tensor):
         return obj.shape  # Return shape of the tensor
@@ -33,12 +41,57 @@ def get_shapes(obj):
         return tuple(get_shapes(o) for o in obj)  # Recursively check tuples
     else:
         return None
+    
+class DummyYOLOStudent(nn.Module):
+    def __init__(self, num_classes=80):
+        super(DummyYOLOStudent, self).__init__()
+        
+        # Backbone (simple convolution layers instead of YOLO-like backbone)
+        self.backbone = nn.Sequential(
+            nn.Conv2d(3, 16, kernel_size=3, stride=1, padding=1),  # Input image has 3 channels (RGB)
+            nn.BatchNorm2d(16),
+            nn.ReLU(),
+            nn.MaxPool2d(kernel_size=2, stride=2),  # Reduce spatial size by 2
+            
+            nn.Conv2d(16, 32, kernel_size=3, stride=1, padding=1),
+            nn.BatchNorm2d(32),
+            nn.ReLU(),
+            nn.MaxPool2d(kernel_size=2, stride=2),
+            
+            nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=1),
+            nn.BatchNorm2d(64),
+            nn.ReLU(),
+            nn.MaxPool2d(kernel_size=2, stride=2)
+        )
+        
+        # YOLO-like detection head
+        self.head = nn.Sequential(
+            nn.Conv2d(64, 128, kernel_size=3, stride=1, padding=1),
+            nn.BatchNorm2d(128),
+            nn.ReLU(),
+            
+            nn.Conv2d(128, num_classes + 5, kernel_size=1),  # num_classes + 5 (for bbox coordinates + obj score)
+        )
+        
+    def forward(self, x):
+        # Pass through the backbone
+        x = self.backbone(x)
+        
+        # Pass through the detection head
+        x = self.head(x)
+        
+        # Split output into bbox, objectness, and class predictions
+        # Assuming output format: [batch, num_anchors, num_classes + 5, H, W]
+        # Here we simply reshape to simplify, depending on the YOLO format you're using.
+        # BBox predictions: 4 coordinates per bounding box (center_x, center_y, width, height)
+        # Objectness prediction: 1 score for each anchor
+        # Class prediction: num_classes probabilities for each anchor
+        pred_bbox = x[:, :, :4]  # First 4 channels for bbox
+        pred_obj = x[:, :, 4:5]  # 5th channel for objectness score
+        pred_class = x[:, :, 5:]  # Remaining channels for class predictions
+        
+        return pred_bbox, pred_obj, pred_class
 
-def forward_hook(module, input, output):
-    if isinstance(output, tuple):
-        output = output[0]
-    #outputs = module.postprocess(output, max_det=module.max_det, nc=module.nc)
-    outputs.append(output)
 
 # Argument Parsing
 parser = argparse.ArgumentParser("WAID")
@@ -71,66 +124,56 @@ parser.add_argument('--temperature', type=float, default=3.0, help='temperature 
 args = parser.parse_args()
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
-# Initialize the teacher model
-# teacher = YOLO('yolov8-LDconv.yaml')
-# #model_state_dict = torch.load("/kaggle/input/yolov8m-pt/yolov8m.pt")
-# teacher.to(device)
-# dummy = torch.rand(1,3,640,640)
+
 # # for name, layer in teacher.named_modules():
 # #     print(name, layer)
-# layer = getattr(teacher.model.model, '22')
-# # print(layer)
-# hook_handle = layer.register_forward_hook(forward_hook)
-# # hooks = []
-# # for name, layer in teacher.model.named_modules():
-# #     hooks.append(layer.register_forward_hook(forward_hook))
-# #teacher.load_state_dict(torch.load('/YoloKD/yolowts.pt'))
-# #img_path = "C:\\Users\\Shaurya\\Pictures\\aadhaar page 1.jpg"
-# with torch.no_grad():  # No gradient computation is needed
-#     output = teacher(dummy)
 
-# # print("Final Output:", output)  # This is the model's output
-
-# print("Captured Output from the Hook:", get_shapes(outputs))
-# # Experiment setup
-# try:
-#     args.save = 'eval-{}-{}'.format(args.save, time.strftime("%Y%m%d-%H%M%S"))
-#     ultralytics.nn.modules.darts_utils.create_exp_dir(args.save, scripts_to_save=glob.glob('*.py'))
-    
-#     log_format = '%(asctime)s %(message)s'
-#     logging.basicConfig(stream=sys.stdout, level=logging.INFO, format=log_format, datefmt='%m/%d %I:%M:%S %p')
-
-#     fh = logging.FileHandler(os.path.join(args.save, 'log.txt'))
-#     fh.setFormatter(logging.Formatter(log_format))
-#     logging.getLogger().addHandler(fh)
-# except Exception as e:
-#     print(f"Logging setup failed: {e}")
-#     sys.exit(1)
-
-# print('broo')
 # YOLO Loss Class
-class YOLOLoss(nn.Module):
-    def __init__(self, lambda_bbox=5.0, lambda_obj=1.0, lambda_noobj=0.5, lambda_class=1.0):
-        super(YOLOLoss, self).__init__()
+class YOLOKDLoss(nn.Module):
+    def __init__(self, lambda_bbox=5.0, lambda_obj=1.0, lambda_noobj=0.5, lambda_class=1.0, lambda_kd=0.7, temperature=3.0):
+        super(YOLOKDLoss, self).__init__()
         self.lambda_bbox = lambda_bbox
         self.lambda_obj = lambda_obj
         self.lambda_noobj = lambda_noobj
         self.lambda_class = lambda_class
+        self.lambda_kd = lambda_kd
+        self.temperature = temperature
+
         self.mse = nn.MSELoss()
         self.bce = nn.BCELoss()
         self.ce = nn.CrossEntropyLoss()
+        self.kldiv = nn.KLDivLoss(reduction='batchmean')
 
-    def forward(self, predictions, targets):
-        pred_bbox, pred_obj, pred_class = predictions
+    def forward(self, student_preds, teacher_preds, targets):
+        # Unpack predictions
+        student_bbox, student_obj, student_class = student_preds
+        teacher_bbox, teacher_obj, teacher_class = teacher_preds
         target_bbox, target_obj, target_class = targets
-        bbox_loss = self.mse(pred_bbox, target_bbox)
-        obj_loss = self.bce(pred_obj, target_obj)
-        no_obj_loss = self.bce(1 - pred_obj, 1 - target_obj)
-        class_loss = self.ce(pred_class, target_class)
+
+        # Standard YOLO losses against ground truth
+        bbox_loss = self.mse(student_bbox, target_bbox)
+        obj_loss = self.bce(student_obj, target_obj)
+        no_obj_loss = self.bce(1 - student_obj, 1 - target_obj)
+        class_loss = self.ce(student_class, target_class)
+
+        # Knowledge distillation loss for class predictions (teacher vs student logits)
+        soft_teacher_class = nn.functional.softmax(teacher_class / self.temperature, dim=-1)
+        soft_student_class = nn.functional.log_softmax(student_class / self.temperature, dim=-1)
+        kd_class_loss = self.kldiv(soft_student_class, soft_teacher_class) * (self.temperature ** 2)
+
+        # Distill bounding box predictions (teacher vs student)
+        kd_bbox_loss = self.mse(student_bbox, teacher_bbox)
+
+        # Distill objectness predictions (teacher vs student)
+        kd_obj_loss = self.bce(student_obj, teacher_obj)
+
+        # Combine the losses
         total_loss = (self.lambda_bbox * bbox_loss +
                       self.lambda_obj * obj_loss +
                       self.lambda_noobj * no_obj_loss +
-                      self.lambda_class * class_loss)
+                      self.lambda_class * class_loss +
+                      self.lambda_kd * (kd_class_loss + kd_bbox_loss + kd_obj_loss))
+
         return total_loss
 
 # Main function
@@ -156,7 +199,7 @@ def main():
     model = model.cuda()
     logging.info("param size = %fMB", ultralytics.nn.modules.darts_utils.count_parameters_in_MB(model))
 
-    criterion = YOLOLoss().cuda()
+    criterion = YOLOKDLoss().cuda()
     optimizer = torch.optim.SGD(model.parameters(), lr=args.learning_rate, momentum=args.momentum, weight_decay=args.weight_decay)
 
     train_data = YOLOObjectDetectionDataset(img_dir=args.img_dir, label_dir=args.label_dir, classes=['sheep', 'cattle', 'seal', 'camelus', 'kiang', 'zebra'], transform=ultralytics.nn.modules.darts_utils._data_transforms_WAID)
@@ -174,6 +217,7 @@ def main():
         print("before training")
         model.drop_path_prob = args.drop_path_prob * epoch / args.epochs
         train_acc, train_obj = train(train_queue, model, teacher, criterion, optimizer, args)
+        print(train_acc)
         logging.info('train_acc %f', train_acc)
         valid_acc, valid_obj = infer(valid_queue, model, criterion)
         logging.info('valid_acc %f', valid_acc)
@@ -184,43 +228,52 @@ def train(train_queue, model, teacher, criterion, optimizer, args):
     objs = ultralytics.nn.modules.darts_utils.AvgrageMeter()
     top1 = ultralytics.nn.modules.darts_utils.AvgrageMeter()
     top5 = ultralytics.nn.modules.darts_utils.AvgrageMeter()
+
     print("training")
+
     teacher.eval()
     model.train()
+
+    layer_teacher = getattr(teacher.model.model, '22')
+    layer_student = getattr(teacher.model.model, '22')
+    # layer_teacher.register_forward_hook(forward_hook_teacher)
+    # layer_student.register_forward_hook(forward_hook_student)
+
     print(len(train_queue))
     for step, (input, target) in enumerate(train_queue):
         input, target = input.cuda(), target.cuda()
         optimizer.zero_grad()
 
         with torch.no_grad():
-            teacher_logits = teacher(input)
+            teacher_bbox, teacher_obj, teacher_class = teacher(input)
 
-        logits, logits_aux = model(input)
+        student_bbox, student_obj, student_class = model(input)
 
-        soft_targets = nn.functional.softmax(teacher_logits / args.temperature, dim=-1)
-        soft_prob = nn.functional.log_softmax(logits / args.temperature, dim=-1)
-        soft_targets_loss = nn.KLDivLoss(reduction='batchmean')(soft_prob, soft_targets) * (args.temperature ** 2)
+        student_preds = (student_bbox, student_obj, student_class)
+        teacher_preds = (teacher_bbox, teacher_obj, teacher_class)
 
-        hard_loss = criterion(logits, target)
-        loss = args.ce_weight * hard_loss + args.kd_weight * soft_targets_loss
+        target_bbox = target['bbox']
+        target_obj = target['obj']
+        target_class = target['class']
+        targets = (target_bbox, target_obj, target_class)
 
-        if args.auxiliary:
-            loss_aux = criterion(logits_aux, target)
-            loss += args.auxiliary_weight * loss_aux
+        loss = criterion(student_preds, teacher_preds, targets)
 
         loss.backward()
         nn.utils.clip_grad_norm_(model.parameters(), args.grad_clip)
         optimizer.step()
 
-        prec1, prec5 = ultralytics.nn.modules.darts_utils.accuracy(logits, target, topk=(1, 5))
+        prec1, prec5 = ultralytics.nn.modules.darts_utils.accuracy(student_class, target_class, topk=(1, 5))
         n = input.size(0)
         objs.update(loss.item(), n)
         top1.update(prec1.item(), n)
         top5.update(prec5.item(), n)
 
+        # Optionally log the progress every few steps
         if step % args.report_freq == 0:
             logging.info('train %03d %e %f %f', step, objs.avg, top1.avg, top5.avg)
 
+    # Return average metrics for monitoring
     return top1.avg, objs.avg
 
 # Validation function
