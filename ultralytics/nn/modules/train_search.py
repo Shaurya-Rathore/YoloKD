@@ -14,7 +14,7 @@ import torch.backends.cudnn as cudnn
 
 
 from torch.autograd import Variable
-from model_search import Network
+from model_search import YOLOv8StudentModel
 from architect import Architect
 from dataloader import YOLOObjectDetectionDataset
 
@@ -77,7 +77,7 @@ def main():
 
   criterion = nn.CrossEntropyLoss()
   criterion = criterion.cuda()
-  model = Network(args.init_channels, WAID_CLASSES, args.layers, criterion)
+  model = YOLOv8StudentModel(WAID_CLASSES,args.init_channels, args.layers, steps=4, multiplier=4, stem_multiplier=3)
   model = model.cuda()
   logging.info("param size = %fMB", darts_utils.count_parameters_in_MB(model))
 
