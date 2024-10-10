@@ -62,27 +62,15 @@ WAID_CLASSES = 6
 
 def custom_collate(batch):
     # Filter out any None samples
-    batch = list(filter(lambda x: x is not None, batch))
+    inputs, targets = zip(*batch)
     
-    # Separate inputs and targets
-    inputs = [item[0] for item in batch]
-    targets = [item[1] for item in batch]
+    # Pad inputs to match the size of the largest tensor
+    inputs_padded = pad_sequence(inputs, batch_first=True)
     
-    # Pad inputs to the same size
-    max_h = max([inp.shape[0] for inp in inputs])
-    max_w = max([inp.shape[1] for inp in inputs])
-    padded_inputs = []
-    for inp in inputs:
-        pad_h = max_h - inp.shape[0]
-        pad_w = max_w - inp.shape[1]
-        padded_inp = F.pad(inp, (0, pad_w, 0, pad_h))
-        padded_inputs.append(padded_inp)
+    # Stack the targets directly (assuming they are of fixed size)
+    targets_stacked = torch.stack(targets)
     
-    # Stack inputs and targets
-    inputs = torch.stack(padded_inputs)
-    targets = torch.stack(targets)
-    
-    return inputs, targets
+    return inputs_padded, targets_stacked
 
 
 def main():
