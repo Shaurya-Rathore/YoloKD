@@ -64,6 +64,7 @@ def _data_transforms_WAID(args):
   WAID_STD = [0.2009, 0.2009, 0.2009]
 
   train_transform = transforms.Compose([
+    transforms.Resize((600, 600)),  
     transforms.RandomCrop(32, padding=4),
     transforms.RandomHorizontalFlip(),
     transforms.ToTensor(),
@@ -79,6 +80,7 @@ def _val_data_transforms_WAID(args):
   WAID_STD = [0.1996, 0.1995, 0.1995]
 
   val_transform = transforms.Compose([
+    transforms.Resize((600, 600)),  
     transforms.ToTensor(),
     transforms.Normalize(WAID_MEAN, WAID_STD),
     ])
