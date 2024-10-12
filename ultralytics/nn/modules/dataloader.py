@@ -83,6 +83,6 @@ def custom_collate_fn(batch):
     for i, (box, label) in enumerate(zip(boxes, labels)):
         if box.numel() > 0:
             padded_boxes[i, :box.shape[0], :] = box
-            padded_labels[i, :label.shape[0]] = label
+            padded_labels[i, :label.shape] = label
     
     return images, padded_boxes, padded_labels
