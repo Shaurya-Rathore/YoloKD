@@ -63,9 +63,9 @@ class YOLOObjectDetectionDataset(Dataset):
         return self.classes[class_id]
 
 def custom_collate_fn(batch):
-    batch = list(filter(lambda x: x is not None, batch))
-    return torch.utils.data.dataloader.default_collate(batch) 
-    """images = []
+    #batch = list(filter(lambda x: x is not None, batch))
+    #return torch.utils.data.dataloader.default_collate(batch) 
+    images = []
     boxes = []
     labels = []
     for image, box, label in batch:
@@ -85,4 +85,4 @@ def custom_collate_fn(batch):
             padded_boxes[i, :box.shape[0], :] = box
             padded_labels[i, :label.shape[0]] = label
     
-    return images, padded_boxes, padded_labels"""
+    return images,padded_labels #padded_boxes,
