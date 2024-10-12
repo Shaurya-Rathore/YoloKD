@@ -76,7 +76,7 @@ def cv2_resize(image):
             image = cv2.cvtColor(image, cv2.COLOR_RGBA2RGB)
         
         # Resize the image
-        resized = cv2.resize(image, (600, 600), interpolation=cv2.INTER_LINEAR)
+        resized = cv2.resize(image, (640, 640), interpolation=cv2.INTER_LINEAR)
         
         # Convert back to PIL Image
         return Image.fromarray(resized)
@@ -88,7 +88,7 @@ def _data_transforms_WAID(args):
 
   train_transform = transforms.Compose([
     transforms.Lambda(cv2_resize),  
-    transforms.RandomCrop(32, padding=4),
+    # transforms.RandomCrop(32, padding=4),
     transforms.RandomHorizontalFlip(),
     transforms.ToTensor(),
     transforms.Normalize(WAID_MEAN, WAID_STD),

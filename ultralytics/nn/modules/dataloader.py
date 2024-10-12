@@ -55,7 +55,9 @@ class YOLOObjectDetectionDataset(Dataset):
 
         # Create target tensors
         boxes = labels[:, 1:] if len(labels) > 0 else torch.zeros((0, 4))
+        print(f'boxes shape {boxes.shape}')
         labels = labels[:, 0].long() if len(labels) > 0 else torch.zeros(0, dtype=torch.int64)
+        print(f'labels shape {labels.shape}')
 
         return image, boxes, labels
 
