@@ -58,13 +58,16 @@ class Cutout(object):
         img *= mask
         return img
 
+ def cv2_resize(image):
+        return cv2.resize(image, (600, 600), interpolation=cv2.INTER_LINEAR)
+
 
 def _data_transforms_WAID(args):
   WAID_MEAN = [0.4788, 0.4791, 0.4789]
   WAID_STD = [0.2009, 0.2009, 0.2009]
 
   train_transform = transforms.Compose([
-    transforms.Resize((600, 600)),  
+    transforms.Lambda(cv2_resize),  
     transforms.RandomCrop(32, padding=4),
     transforms.RandomHorizontalFlip(),
     transforms.ToTensor(),
@@ -80,7 +83,7 @@ def _val_data_transforms_WAID(args):
   WAID_STD = [0.1996, 0.1995, 0.1995]
 
   val_transform = transforms.Compose([
-    transforms.Resize((600, 600)),  
+    transforms.Lambda(cv2_resize),    
     transforms.ToTensor(),
     transforms.Normalize(WAID_MEAN, WAID_STD),
     ])
