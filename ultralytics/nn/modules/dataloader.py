@@ -55,9 +55,7 @@ class YOLOObjectDetectionDataset(Dataset):
 
         # Create target tensors
         boxes = labels[:, 1:] if len(labels) > 0 else torch.zeros((0, 4))
-        print(f'boxes shape {boxes.shape}')
         labels = labels[:, 0:1].long() if len(labels) > 0 else torch.zeros(0, dtype=torch.int64)
-        print(f'labels shape {labels.shape}')
 
         return image, boxes, labels
 
@@ -65,16 +63,16 @@ class YOLOObjectDetectionDataset(Dataset):
         return self.classes[class_id]
 
 def custom_collate_fn(batch):
-    batch = list(filter(lambda x: x is not None, batch))
-    return torch.utils.data.dataloader.default_collate(batch) 
-    """images = []
+    # batch = list(filter(lambda x: x is not None, batch))
+    # return torch.utils.data.dataloader.default_collate(batch)
+    images = []
     boxes = []
     labels = []
     for image, box, label in batch:
         images.append(image)
         boxes.append(box)
         labels.append(label)
-    
+    print(images.shape)
     images = torch.stack(images, 0)
     
     # Pad boxes and labels to have the same shape
@@ -87,4 +85,4 @@ def custom_collate_fn(batch):
             padded_boxes[i, :box.shape[0], :] = box
             padded_labels[i, :label.shape[0]] = label
     
-    return images, padded_boxes, padded_labels"""
+    return images, padded_boxes, padded_labels
