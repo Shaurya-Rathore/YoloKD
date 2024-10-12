@@ -4,6 +4,9 @@ import torch
 import shutil
 import torchvision.transforms as transforms
 from torch.autograd import Variable
+from PIL import Image
+import cv2
+import torch.nn as nn
 
 
 class AvgrageMeter(object):
@@ -58,13 +61,35 @@ class Cutout(object):
         img *= mask
         return img
 
+def cv2_resize(image):
+        if isinstance(image, Image.Image):
+            # Convert PIL Image to numpy array
+            image = np.array(image)
+        elif isinstance(image, torch.Tensor):
+            # Convert PyTorch tensor to numpy array
+            image = image.permute(1, 2, 0).numpy()
+        
+        if len(image.shape) == 2:
+            # If the image is grayscale, convert to RGB
+            image = cv2.cvtColor(image, cv2.COLOR_GRAY2RGB)
+        elif image.shape[2] == 4:
+            # If the image has an alpha channel, convert to RGB
+            image = cv2.cvtColor(image, cv2.COLOR_RGBA2RGB)
+        
+        # Resize the image
+        resized = cv2.resize(image, (640, 640), interpolation=cv2.INTER_LINEAR)
+        
+        # Convert back to PIL Image
+        return Image.fromarray(resized)
+
 
 def _data_transforms_WAID(args):
   WAID_MEAN = [0.4788, 0.4791, 0.4789]
   WAID_STD = [0.2009, 0.2009, 0.2009]
 
   train_transform = transforms.Compose([
-    transforms.RandomCrop(32, padding=4),
+    transforms.Lambda(cv2_resize),  
+    # transforms.RandomCrop(32, padding=4),
     transforms.RandomHorizontalFlip(),
     transforms.ToTensor(),
     transforms.Normalize(WAID_MEAN, WAID_STD),
@@ -79,6 +104,7 @@ def _val_data_transforms_WAID(args):
   WAID_STD = [0.1996, 0.1995, 0.1995]
 
   val_transform = transforms.Compose([
+    transforms.Lambda(cv2_resize),    
     transforms.ToTensor(),
     transforms.Normalize(WAID_MEAN, WAID_STD),
     ])
@@ -124,6 +150,49 @@ def create_exp_dir(path, scripts_to_save=None):
     for script in scripts_to_save:
       dst_file = os.path.join(path, 'scripts', os.path.basename(script))
       shutil.copyfile(script, dst_file)
+
+class YOLOLoss(nn.Module):
+    def _init_(self,lambda_bbox=5.0, lambda_obj=1.0, lambda_noobj=0.5, lambda_class=1.0):
+        super(YOLOLoss, self)._init_()
+        # Weights for each component of the loss
+        self.lambda_bbox = lambda_bbox
+        self.lambda_obj = lambda_obj
+        self.lambda_noobj = lambda_noobj
+        self.lambda_class = lambda_class
+
+        # Loss functions for different components
+        self.mse = nn.MSELoss()  # For bounding box regression
+        self.bce = nn.BCELoss()  # For objectness prediction
+        self.ce = nn.CrossEntropyLoss()  # For classification prediction
+
+    def forward(self,predictions,targets):
+        # Unpack predictions and targets
+        # Assuming that 'predictions' is a tuple of (bbox, objectness, class_probs)
+        # And 'targets' is the same structure
+        pred_bbox, pred_obj, pred_class = predictions
+        target_bbox, target_obj, target_class = targets
+
+        # Bounding Box Loss
+        bbox_loss = self.mse(pred_bbox, target_bbox)
+
+        # Objectness Loss (whether object exists in the cell or not)
+        obj_loss = self.bce(pred_obj, target_obj)
+
+        # No-objectness Loss (penalize for false predictions of objects where none exist)
+        no_obj_loss = self.bce(1 - pred_obj, 1 - target_obj)
+
+        # Classification Loss (multi-class task)
+        class_loss = self.ce(pred_class, target_class)
+
+        # Combine losses
+        total_loss = (
+            self.lambda_bbox * bbox_loss +
+            self.lambda_obj * obj_loss +
+            self.lambda_noobj * no_obj_loss +
+            self.lambda_class * class_loss
+        )
+
+        return total_loss
 
 
 Test_Mean = [0.4766, 0.4769, 0.4767]
