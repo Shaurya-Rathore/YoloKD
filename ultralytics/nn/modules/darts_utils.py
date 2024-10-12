@@ -58,8 +58,8 @@ class Cutout(object):
         img *= mask
         return img
 
- def cv2_resize(image):
-        return cv2.resize(image, (600, 600), interpolation=cv2.INTER_LINEAR)
+def cv2_resize(image):
+  return cv2.resize(image, (600, 600), interpolation=cv2.INTER_LINEAR)
 
 
 def _data_transforms_WAID(args):
