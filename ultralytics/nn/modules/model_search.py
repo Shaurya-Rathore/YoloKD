@@ -12,6 +12,7 @@ from torch.cuda.amp import autocast, GradScaler
 
 from genotypes import PRIMITIVES
 from genotypes import Genotype
+from darts_utils import YOLOLoss
 
 def make_anchors(feats, strides, grid_cell_offset=0.5):
     """Generate anchors from features."""
@@ -411,7 +412,7 @@ class Detect(nn.Module):
 
     dynamic = False  # force grid reconstruction
     export = False  # export mode
-    end2end = True  # end2end
+    end2end = False  # end2end
     max_det = 300  # max_det
     shape = None
     anchors = torch.empty(0)  # init
@@ -564,6 +565,7 @@ class YOLOv8StudentModel(nn.Module):
     self.backbone = DARTSBackbone(C=C, layers=layers, steps=steps, multiplier=multiplier, stem_multiplier=stem_multiplier)
     self.arch_parameters = self.backbone.arch_parameters()
     self._multiplier = multiplier
+    self._criterion = YOLOLoss()
     # Example: The channels from the backbone after feature extraction
     # Assuming C3 and C4 feature maps from backbone
     backbone_out_channels = [C*multiplier*2,C * multiplier * 4, C * multiplier * 8]  # Example for C3 and C4
@@ -585,6 +587,10 @@ class YOLOv8StudentModel(nn.Module):
       self.alphas_normal,
       self.alphas_reduce,
     ]
+
+  #def _loss(self, input, target):
+    #logits = self(input)
+    #return self._criterion(logits, target) 
   
   def genotype(self):
 
@@ -637,6 +643,9 @@ class YOLOv8StudentModel(nn.Module):
     # Step 2: Pass feature maps through the neck for multi-scale fusion
     fused_features = self.neck(C2,C3,C4)
     # Step 3: Predict bounding boxes, objectness, and class scores
-    bbox_preds= self.detect(list(fused_features))
+    x= self.detect(list(fused_features))
+    #pred_bbox = x[:, :, :4]  
+    #pred_obj = x[:, :, 4:5] 
+    #pred_class = x[:, :, 5:]
 
-    return bbox_preds
+    return x #pred_bbox, pred_obj,pred_class

@@ -6,6 +6,7 @@ import torchvision.transforms as transforms
 from torch.autograd import Variable
 from PIL import Image
 import cv2
+import torch.nn as nn
 
 
 class AvgrageMeter(object):
@@ -149,6 +150,49 @@ def create_exp_dir(path, scripts_to_save=None):
     for script in scripts_to_save:
       dst_file = os.path.join(path, 'scripts', os.path.basename(script))
       shutil.copyfile(script, dst_file)
+
+class YOLOLoss(nn.Module):
+    def _init_(self,lambda_bbox=5.0, lambda_obj=1.0, lambda_noobj=0.5, lambda_class=1.0):
+        super(YOLOLoss, self)._init_()
+        # Weights for each component of the loss
+        self.lambda_bbox = lambda_bbox
+        self.lambda_obj = lambda_obj
+        self.lambda_noobj = lambda_noobj
+        self.lambda_class = lambda_class
+
+        # Loss functions for different components
+        self.mse = nn.MSELoss()  # For bounding box regression
+        self.bce = nn.BCELoss()  # For objectness prediction
+        self.ce = nn.CrossEntropyLoss()  # For classification prediction
+
+    def forward(self,predictions,targets):
+        # Unpack predictions and targets
+        # Assuming that 'predictions' is a tuple of (bbox, objectness, class_probs)
+        # And 'targets' is the same structure
+        pred_bbox, pred_obj, pred_class = predictions
+        target_bbox, target_obj, target_class = targets
+
+        # Bounding Box Loss
+        bbox_loss = self.mse(pred_bbox, target_bbox)
+
+        # Objectness Loss (whether object exists in the cell or not)
+        obj_loss = self.bce(pred_obj, target_obj)
+
+        # No-objectness Loss (penalize for false predictions of objects where none exist)
+        no_obj_loss = self.bce(1 - pred_obj, 1 - target_obj)
+
+        # Classification Loss (multi-class task)
+        class_loss = self.ce(pred_class, target_class)
+
+        # Combine losses
+        total_loss = (
+            self.lambda_bbox * bbox_loss +
+            self.lambda_obj * obj_loss +
+            self.lambda_noobj * no_obj_loss +
+            self.lambda_class * class_loss
+        )
+
+        return total_loss
 
 
 Test_Mean = [0.4766, 0.4769, 0.4767]

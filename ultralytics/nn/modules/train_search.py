@@ -13,7 +13,7 @@ import torch.nn.functional as F
 import torch.backends.cudnn as cudnn
 from torch.nn.utils.rnn import pad_sequence
 
-
+from darts_utils import YOLOLoss
 from torch.autograd import Variable
 from model_search import YOLOv8StudentModel
 from architect import Architect
@@ -97,7 +97,7 @@ def main():
 
   criterion = nn.CrossEntropyLoss()
   criterion = criterion.cuda()
-  model = YOLOv8StudentModel(WAID_CLASSES,args.init_channels, args.layers, steps=4, multiplier=4, stem_multiplier=3)
+  model = YOLOv8StudentModel(WAID_CLASSES, args.init_channels, args.layers, steps=4, multiplier=4, stem_multiplier=3)
   model = model.cuda()
   logging.info("param size = %fMB", darts_utils.count_parameters_in_MB(model))
 

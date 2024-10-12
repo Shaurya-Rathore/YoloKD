@@ -7,7 +7,7 @@ def test_network():
     C = 16  # Initial number of channels
     num_classes = 6  # Number of output classes
     layers = 8  # Number of layers in the network
-    criterion = nn.CrossEntropyLoss()  # Loss function
+    #criterion = YOLOLoss  # Loss function
 
     # Create the network (CPU only)
     model = YOLOv8StudentModel(num_classes, C=64, layers=14, steps=4, multiplier=4, stem_multiplier=3)
@@ -28,12 +28,12 @@ def test_network():
     print("bbox",bbox_preds) 
 
     # Calculate loss
-    #loss = model._loss(x, labels)
-    #print(f"Loss: {loss.item()}")
+    loss = model._loss(x, labels)
+    print(f"Loss: {loss.item()}")
 
     # Print the genotype
-    #genotype = model.genotype()
-    #print(f"Genotype: {genotype}")
+    genotype = model.genotype()
+    print(f"Genotype: {genotype}")
 
 if __name__ == "__main__":
     test_network()
