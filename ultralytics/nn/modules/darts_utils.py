@@ -4,6 +4,7 @@ import torch
 import shutil
 import torchvision.transforms as transforms
 from torch.autograd import Variable
+import cv2
 
 
 class AvgrageMeter(object):
