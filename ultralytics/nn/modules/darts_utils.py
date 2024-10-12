@@ -4,6 +4,7 @@ import torch
 import shutil
 import torchvision.transforms as transforms
 from torch.autograd import Variable
+from PIL import Image
 import cv2
 
 
@@ -60,7 +61,25 @@ class Cutout(object):
         return img
 
 def cv2_resize(image):
-  return cv2.resize(image, (600, 600), interpolation=cv2.INTER_LINEAR)
+        if isinstance(image, Image.Image):
+            # Convert PIL Image to numpy array
+            image = np.array(image)
+        elif isinstance(image, torch.Tensor):
+            # Convert PyTorch tensor to numpy array
+            image = image.permute(1, 2, 0).numpy()
+        
+        if len(image.shape) == 2:
+            # If the image is grayscale, convert to RGB
+            image = cv2.cvtColor(image, cv2.COLOR_GRAY2RGB)
+        elif image.shape[2] == 4:
+            # If the image has an alpha channel, convert to RGB
+            image = cv2.cvtColor(image, cv2.COLOR_RGBA2RGB)
+        
+        # Resize the image
+        resized = cv2.resize(image, (600, 600), interpolation=cv2.INTER_LINEAR)
+        
+        # Convert back to PIL Image
+        return Image.fromarray(resized)
 
 
 def _data_transforms_WAID(args):
