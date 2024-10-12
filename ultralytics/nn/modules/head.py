@@ -54,7 +54,6 @@ class Detect(nn.Module):
 
         for i in range(self.nl):
             moo = self.cv2[i](x[i])
-            print(f'cv2 shape {moo.shape}')
             x[i] = torch.cat((self.cv2[i](x[i]), self.cv3[i](x[i])), 1)
         if self.training:  # Training path
             return x
@@ -90,7 +89,6 @@ class Detect(nn.Module):
         # Inference path
         shape = x[0].shape  # BCHW
         x_cat = torch.cat([xi.view(shape[0], self.no, -1) for xi in x], 2)
-        print(f'x_cat {x_cat.shape}')
         if self.dynamic or self.shape != shape:
             self.anchors, self.strides = (x.transpose(0, 1) for x in make_anchors(x, self.stride, 0.5))
             self.shape = shape
