@@ -69,10 +69,10 @@ def custom_collate_fn(batch):
     boxes = []
     labels = []
     for image, box, label in batch:
+        print(image.shape)
         images.append(image)
         boxes.append(box)
         labels.append(label)
-    print(images.shape)
     images = torch.stack(images, 0)
     
     # Pad boxes and labels to have the same shape
