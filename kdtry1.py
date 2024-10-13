@@ -77,6 +77,6 @@ Result_Final_model = model.train(
 )
 
 # Save the model after training
-torch.save(model.model.state_dict(), './YoloKD/yololdconv60lowlr_waid.pt')
+torch.save(model.model.state_dict(), './yololdconv60lowlr_waid.pt')
 # Finish W&B run
 wandb.finish()
