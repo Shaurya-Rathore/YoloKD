@@ -13,7 +13,7 @@ import torch.nn.functional as F
 import torch.backends.cudnn as cudnn
 from torch.nn.utils.rnn import pad_sequence
 
-from darts_utils import YOLOLoss
+from darts_utils import YOLOLoss,process_yolov8_output
 from torch.autograd import Variable
 from model_search import YOLOv8StudentModel
 from architect import Architect
@@ -95,7 +95,7 @@ def main():
   logging.info('gpu device = %d' % args.gpu)
   logging.info("args = %s", args)
 
-  criterion = nn.CrossEntropyLoss()
+  criterion = YOLOLoss()
   criterion = criterion.cuda()
   model = YOLOv8StudentModel(WAID_CLASSES, args.init_channels, args.layers, steps=4, multiplier=4, stem_multiplier=3)
   model = model.cuda()

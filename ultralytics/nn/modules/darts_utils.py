@@ -166,10 +166,12 @@ class YOLOLoss(nn.Module):
         self.ce = nn.CrossEntropyLoss()  # For classification prediction
 
     def forward(self,predictions,targets):
+        for tensor in predictions:
+          pred_bbox,pred_class,pred_obj = process_yolov8_output(tensor)
         # Unpack predictions and targets
         # Assuming that 'predictions' is a tuple of (bbox, objectness, class_probs)
         # And 'targets' is the same structure
-        pred_bbox, pred_obj, pred_class = predictions
+        #pred_bbox, pred_obj, pred_class = predictions
         target_bbox, target_obj, target_class = targets
 
         # Bounding Box Loss
