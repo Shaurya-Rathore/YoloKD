@@ -12,6 +12,7 @@ import torch.utils
 import torch.nn.functional as F
 import torch.backends.cudnn as cudnn
 from torch.nn.utils.rnn import pad_sequence
+import gc
 
 from darts_utils import YOLOLoss,process_yolov8_output
 from torch.autograd import Variable
@@ -85,7 +86,8 @@ def main():
   if not torch.cuda.is_available():
     logging.info('no gpu device available')
     sys.exit(1)
-
+  gc.collect()
+  torch.cuda.empty_cache()
   np.random.seed(args.seed)
   torch.cuda.set_device(args.gpu)
   cudnn.benchmark = True
@@ -113,13 +115,13 @@ def main():
 
   train_queue = torch.utils.data.DataLoader(
       train_data, batch_size=args.batch_size,
-      pin_memory=True, num_workers=2,collate_fn=custom_collate_fn)
+      pin_memory=False, num_workers=2,collate_fn=custom_collate_fn)
   
   val_transform = darts_utils._val_data_transforms_WAID(args)
   valid_data = YOLOObjectDetectionDataset(img_dir = args.val_img_dir,label_dir=args.val_label_dir,classes = classes,transform=val_transform)
   valid_queue = torch.utils.data.DataLoader(
       valid_data, batch_size=args.batch_size,
-      pin_memory=True, num_workers=2,collate_fn=custom_collate_fn)
+      pin_memory=False, num_workers=2,collate_fn=custom_collate_fn)
 
   scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
         optimizer, float(args.epochs), eta_min=args.learning_rate_min)
