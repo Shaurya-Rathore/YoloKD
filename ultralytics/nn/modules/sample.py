@@ -1,39 +1,8 @@
 import torch
 import torch.nn as nn
 from model_search import YOLOv8StudentModel 
+from darts_utils import process_yolov8_output
 
-def process_yolov8_output(output, num_classes=6, reg_max=4):
-    """
-    Process YOLOv8 output to extract bounding box predictions and class probabilities.
-    
-    Args:
-    output (torch.Tensor): Output tensor from YOLOv8 detection head.
-    num_classes (int): Number of classes.
-    reg_max (int): DFL channels.
-    
-    Returns:
-    tuple: (dbox, cls) where dbox is the bounding box predictions and cls is the class probabilities.
-    """
-    no = num_classes + reg_max * 4
-    
-    # Split the output into box and cls parts
-    dbox = output[:, :reg_max * 4]
-    cls = output[:, reg_max * 4:]
-    
-    # Reshape box to (batch_size, 4, reg_max, -1)
-    #box = box.view(box.shape[0], 4, reg_max, -1).permute(0, 2, 1, 3)
-    
-    # Apply softmax to box predictions
-    #box = box.softmax(1)
-    
-    # Calculate the expected value (sum of softmax * indices)
-    #box = box * torch.arange(reg_max, device=box.device).float().view(1, -1, 1, 1)
-    #dbox = box.sum(1)
-    
-    # Apply sigmoid to class probabilities
-    cls = cls.sigmoid()
-    
-    return dbox, cls
 
 
 def test_network():
@@ -62,14 +31,16 @@ def test_network():
     
     for tensor in bbox_preds:
         print(tensor.shape)
-        dbox,cls = process_yolov8_output(tensor)
+        dbox,cls,obj = process_yolov8_output(tensor)
 
     print("bbox",bbox_preds) 
     print("dbox",dbox.size()) 
     print("cls",cls.size()) 
+    print("obj",obj.size())
+    input = (dbox,obj,cls)
 
     # Calculate loss
-    loss = model._loss(x, labels)
+    loss = model._loss(input, labels)
     print(f"Loss: {loss.item()}")
 
     # Print the genotype

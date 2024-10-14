@@ -194,6 +194,39 @@ class YOLOLoss(nn.Module):
 
         return total_loss
 
+def process_yolov8_output(output, num_classes=6, reg_max=4):
+    """
+    Process YOLOv8 output to extract bounding box predictions and class probabilities.
+    
+    Args:
+    output (torch.Tensor): Output tensor from YOLOv8 detection head.
+    num_classes (int): Number of classes.
+    reg_max (int): DFL channels.
+    
+    Returns:
+    tuple: (dbox, cls) where dbox is the bounding box predictions and cls is the class probabilities.
+    """
+    no = num_classes + reg_max * 4
+    
+    # Split the output into box and cls parts
+    dbox = output[:, :reg_max * 4]
+    cls = output[:, reg_max * 4:]
+    
+    # Reshape box to (batch_size, 4, reg_max, -1)
+    #box = box.view(box.shape[0], 4, reg_max, -1).permute(0, 2, 1, 3)
+    
+    # Apply softmax to box predictions
+    #box = box.softmax(1)
+    
+    # Calculate the expected value (sum of softmax * indices)
+    #box = box * torch.arange(reg_max, device=box.device).float().view(1, -1, 1, 1)
+    #dbox = box.sum(1)
+    
+    # Apply sigmoid to class probabilities
+    cls = cls.sigmoid()
+    objectness = cls.max(dim=-1).values
+    return dbox, cls, objectness
+
 
 Test_Mean = [0.4766, 0.4769, 0.4767]
 Test_Std = [0.1985, 0.1984, 0.1984]
