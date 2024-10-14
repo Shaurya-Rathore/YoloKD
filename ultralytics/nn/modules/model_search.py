@@ -423,7 +423,7 @@ class Detect(nn.Module):
         super().__init__()
         self.nc = nc  # number of classes
         self.nl = len(ch)  # number of detection layers
-        self.reg_max = 16  # DFL channels (ch[0] // 16 to scale 4/8/12/16/20 for n/s/m/l/x)
+        self.reg_max = 4 # DFL channels (ch[0] // 16 to scale 4/8/12/16/20 for n/s/m/l/x)
         self.no = nc + self.reg_max * 4  # number of outputs per anchor
         self.stride = torch.zeros(self.nl)  # strides computed during build
         if isinstance(ch[0], torch.Tensor):
@@ -648,4 +648,4 @@ class YOLOv8StudentModel(nn.Module):
     #pred_obj = x[:, :, 4:5] 
     #pred_class = x[:, :, 5:]
 
-    return x #pred_bbox, pred_obj,pred_class
+    return x ,fused_features#pred_bbox, pred_obj,pred_class
