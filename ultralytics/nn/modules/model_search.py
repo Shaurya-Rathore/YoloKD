@@ -449,6 +449,7 @@ class Detect(nn.Module):
         if self.training:  # Training path
             return x
         y = self._inference(x)
+        
         return y if self.export else (y, x)
 
     def forward_end2end(self, x):
@@ -500,7 +501,6 @@ class Detect(nn.Module):
             dbox = self.decode_bboxes(self.dfl(box) * norm, self.anchors.unsqueeze(0) * norm[:, :2])
         else:
             dbox = self.decode_bboxes(self.dfl(box), self.anchors.unsqueeze(0)) * self.strides
-
         return torch.cat((dbox, cls.sigmoid()), 1)
 
     def bias_init(self):
@@ -648,4 +648,4 @@ class YOLOv8StudentModel(nn.Module):
     #pred_obj = x[:, :, 4:5] 
     #pred_class = x[:, :, 5:]
 
-    return x ,fused_features#pred_bbox, pred_obj,pred_class
+    return x#pred_bbox, pred_obj,pred_class
