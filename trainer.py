@@ -127,6 +127,16 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 # # for name, layer in teacher.named_modules():
 # #     print(name, layer)
+teacher = YOLO('yolov8n.pt')
+layer_teacher = getattr(teacher.model.model, '22')
+layer_student = getattr(teacher.model.model, '22')
+layer_teacher.register_forward_hook(forward_hook_teacher)
+dummy = torch.rand(8,3,640,640)
+output1, output2, output3 = teacher(dummy)
+print(f'the output1 is {output1}')
+print(f'the output2 is {output2}')
+print(f'the output3 is {output3}')
+print(f'the head output is {get_shapes(outputs_teacher)}')
 
 # YOLO Loss Class
 class YOLOKDLoss(nn.Module):
