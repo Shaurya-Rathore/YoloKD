@@ -209,6 +209,7 @@ def main():
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, float(args.epochs))
     for epoch in range(args.epochs):
         for step, (input, target) in enumerate(train_queue):
+            input1 = input
             print('almost there')
     
     
