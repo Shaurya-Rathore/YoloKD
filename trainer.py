@@ -219,10 +219,10 @@ def main():
     optimizer = torch.optim.SGD(model.parameters(), lr=args.learning_rate, momentum=args.momentum, weight_decay=args.weight_decay)
 
     train_data = YOLOObjectDetectionDataset(img_dir=args.img_dir, label_dir=args.label_dir, classes=['sheep', 'cattle', 'seal', 'camelus', 'kiang', 'zebra'], transform=ultralytics.nn.modules.darts_utils._data_transforms_WAID)
-    train_queue = torch.utils.data.DataLoader(train_data, batch_size=args.batch_size, pin_memory=True, num_workers=2)
+    train_queue = torch.utils.data.DataLoader(train_data, batch_size=args.batch_size)
 
     valid_data = YOLOObjectDetectionDataset(img_dir=args.val_img_dir, label_dir=args.val_label_dir, classes=['sheep', 'cattle', 'seal', 'camelus', 'kiang', 'zebra'], transform=ultralytics.nn.modules.darts_utils._val_data_transforms_WAID(args))
-    valid_queue = torch.utils.data.DataLoader(valid_data, batch_size=args.batch_size, pin_memory=True, num_workers=2)
+    valid_queue = torch.utils.data.DataLoader(valid_data, batch_size=args.batch_size)
 
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, float(args.epochs))
     print('almost there')
@@ -260,6 +260,7 @@ def train(train_queue, model, teacher, criterion, optimizer, args):
         optimizer.zero_grad()
 
         with torch.no_grad():
+            print('pre-predict')
             teacher_bbox, teacher_obj, teacher_class = teacher.predict(input)
 
         student_bbox, student_obj, student_class = model(input)
@@ -272,8 +273,9 @@ def train(train_queue, model, teacher, criterion, optimizer, args):
         target_class = target['class']
         targets = (target_bbox, target_obj, target_class)
 
+        print('basics')
         loss = criterion(student_preds, teacher_preds, targets)
-
+        print('lossed')
         loss.backward()
         nn.utils.clip_grad_norm_(model.parameters(), args.grad_clip)
         optimizer.step()
