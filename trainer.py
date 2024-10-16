@@ -243,6 +243,7 @@ def train(train_queue, model, teacher, criterion, optimizer, args):
 
     print("training")
 
+    teacher.train(data='/kaggle/input/waiddataset/WAID-main/WAID-main/WAID/data.yaml', epochs=0, batch=16)
     teacher.val()
     model.train()
 
