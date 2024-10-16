@@ -193,7 +193,7 @@ def main():
         logging.info('no gpu device available')
         sys.exit(1)
     print('in here')
-    teacher = YOLO('yolov8-LDconv.yaml')
+    teacher = YOLO('yolov8m.yaml')
     model_state_dict = torch.load("/kaggle/input/yolov8m-pt/yolov8m.pt")
     teacher.model.load_state_dict(model_state_dict, strict=False)
     teacher.to(device)
