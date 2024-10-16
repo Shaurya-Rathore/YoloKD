@@ -206,7 +206,7 @@ def main():
     logging.info("args = %s", args)
 
     genotype = eval("ultralytics.nn.modules.genotypes.%s" % args.arch)
-    model = YOLO('yolov8n.yaml')
+    model = DummyYOLOStudent()
     model = model.cuda()
     logging.info("param size = %fMB", ultralytics.nn.modules.darts_utils.count_parameters_in_MB(model))
 
