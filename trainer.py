@@ -196,6 +196,7 @@ def main():
         logging.info('no gpu device available')
         sys.exit(1)
     
+    model = DummyYOLOStudent()
     criterion = YOLOKDLoss().cuda()
     optimizer = torch.optim.SGD(model.parameters(), lr=args.learning_rate, momentum=args.momentum, weight_decay=args.weight_decay)
 
@@ -227,7 +228,7 @@ def main():
     logging.info("args = %s", args)
 
     genotype = eval("ultralytics.nn.modules.genotypes.%s" % args.arch)
-    model = DummyYOLOStudent()
+    
     model = model.cuda()
     logging.info("param size = %fMB", ultralytics.nn.modules.darts_utils.count_parameters_in_MB(model))
 
