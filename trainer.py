@@ -244,7 +244,7 @@ def train(train_queue, model, teacher, criterion, optimizer, args):
     print("training")
 
     teacher.train(data='/kaggle/input/d/shauryasinghrathore/waiddataset/WAID-main/WAID-main/WAID/data.yaml', epochs=1, batch=8, optimizer= 'AdamW')
-    teacher.val()
+    teacher.eval()
     model.train()
 
     layer_teacher = getattr(teacher.model.model, '22')
