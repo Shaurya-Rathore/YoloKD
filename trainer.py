@@ -243,6 +243,7 @@ def train(train_queue, model, teacher, criterion, optimizer, args):
 
     print("training")
 
+    teacher.val()
     model.train()
 
     layer_teacher = getattr(teacher.model.model, '22')
