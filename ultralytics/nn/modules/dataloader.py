@@ -62,7 +62,7 @@ class YOLOObjectDetectionDataset(Dataset):
     def get_class_name(self, class_id):
         return self.classes[class_id]
 
-def custom_collate_fn(batch):
+def cu1stom_collate_fn(batch):
     # Separate batch components
     images = []
     boxes = []
@@ -90,10 +90,9 @@ def custom_collate_fn(batch):
             padded_labels[i, :label.shape[0]] = label
     
     # Return the images, padded boxes, and padded labels
-    print(f'images: {images} padded labels: {padded_labels}')
     return images, padded_boxes, padded_labels
 
-    def collate_fn(batch):
+def custom_collate_fn(batch):
         """Collates data samples into batches."""
         new_batch = {}
         keys = batch[0].keys()
