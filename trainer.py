@@ -271,12 +271,11 @@ def train(train_queue, model, teacher, criterion, optimizer, args):
 
         with torch.no_grad():
             print('pre-predict')
-            teacher_bbox, teacher_obj, teacher_class = teacher.predict(input)
+            teacher_preds = teacher.predict(input)
 
         student_bbox, student_obj, student_class = model(input)
 
         student_preds = (student_bbox, student_obj, student_class)
-        teacher_preds = (teacher_bbox, teacher_obj, teacher_class)
 
         target_bbox = target['bbox']
         target_obj = target['obj']

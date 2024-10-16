@@ -65,29 +65,38 @@ class YOLOObjectDetectionDataset(Dataset):
 def custom_collate_fn(batch):
     # Separate batch components
     images = []
-    boxes = []
-    labels = []
-    
-    for image, box, label in batch:
+    targets = []
+
+    for i, (image, box, label) in enumerate(batch):
         images.append(image)
-        boxes.append(box)
-        labels.append(label)
-    
+
+        # Create a target tensor with shape [num_objects, 6]
+        # where each row is [batch_index, class, x_center, y_center, width, height]
+        if box.numel() > 0:  # Check if there are any boxes
+            # Calculate the center coordinates, width, and height for each bounding box
+            x_center = (box[:, 0] + box[:, 2]) / 2.0
+            y_center = (box[:, 1] + box[:, 3]) / 2.0
+            width = box[:, 2] - box[:, 0]
+            height = box[:, 3] - box[:, 1]
+            
+            # Stack these into a tensor
+            bbox = torch.stack((x_center, y_center, width, height), dim=1)
+            
+            # Concatenate the class labels and box coordinates
+            target = torch.cat([label.unsqueeze(1).float(), bbox], dim=1)
+            # Add the batch index as the first column
+            target = torch.cat([torch.full((target.shape[0], 1), i).float(), target], dim=1)
+            targets.append(target)
+
     # Stack images along the batch dimension
     images = torch.stack(images, 0)
-    
-    # Find the maximum number of objects in the batch
-    max_objects = max(box.shape[0] for box in boxes)
-    
-    # Initialize tensors for padded boxes and labels
-    padded_boxes = torch.zeros(len(boxes), max_objects, 4)
-    padded_labels = torch.zeros(len(labels), max_objects, dtype=torch.long)
-    
-    # Pad the boxes and labels for each sample in the batch
-    for i, (box, label) in enumerate(zip(boxes, labels)):
-        if box.numel() > 0:  # Check if there are any boxes
-            padded_boxes[i, :box.shape[0], :] = box
-            padded_labels[i, :label.shape[0]] = label
-    
-    # Return the images, padded boxes, and padded labels
-    return images, padded_boxes, padded_labels
+
+    # Concatenate all target tensors into a single tensor
+    if targets:
+        targets = torch.cat(targets, 0)
+    else:
+        # If no targets, create an empty tensor with shape [0, 6]
+        targets = torch.zeros((0, 6))
+
+    # Return the images and targets
+    return images, targets
