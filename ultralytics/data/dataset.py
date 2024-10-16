@@ -230,20 +230,36 @@ class YOLODataset(BaseDataset):
     @staticmethod
     def collate_fn(batch):
         """Collates data samples into batches."""
+        if len(batch) == 0:
+            return None
+
         new_batch = {}
         keys = batch[0].keys()
+
+        # Verify all samples have the same keys
+        for b in batch:
+            if b.keys() != keys:
+                raise ValueError("Inconsistent keys across batch items.")
+
         values = list(zip(*[list(b.values()) for b in batch]))
         for i, k in enumerate(keys):
             value = values[i]
             if k == "img":
-                value = torch.stack(value, 0)
-            if k in {"masks", "keypoints", "bboxes", "cls", "segments", "obb"}:
+                try:
+                    value = torch.stack(value, 0)
+                except RuntimeError as e:
+                    print(f"Error stacking images: {e}")
+                    return None  # Skip problematic batch
+            elif k in {"masks", "keypoints", "bboxes", "cls", "segments", "obb"}:
                 value = torch.cat(value, 0)
+
             new_batch[k] = value
-        new_batch["batch_idx"] = list(new_batch["batch_idx"])
-        for i in range(len(new_batch["batch_idx"])):
-            new_batch["batch_idx"][i] += i  # add target image index for build_targets()
-        new_batch["batch_idx"] = torch.cat(new_batch["batch_idx"], 0)
+
+        # Process batch_idx
+        if "batch_idx" in new_batch:
+            batch_idx_list = [idx + i for i, idx in enumerate(new_batch["batch_idx"])]
+            new_batch["batch_idx"] = torch.cat(batch_idx_list, 0)
+
         return new_batch
 
 
