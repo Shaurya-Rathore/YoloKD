@@ -22,7 +22,7 @@ import yaml
 from torch.autograd import Variable
 #from ultralytics.nn.modules.model import DARTSModel as Network
 
-wandb.init(mode='disabled')
+#wandb.init(mode='disabled')
 
 outputs_teacher = []
 outputs_student = []
