@@ -195,6 +195,22 @@ def main():
     if not torch.cuda.is_available():
         logging.info('no gpu device available')
         sys.exit(1)
+    
+    criterion = YOLOKDLoss().cuda()
+    optimizer = torch.optim.SGD(model.parameters(), lr=args.learning_rate, momentum=args.momentum, weight_decay=args.weight_decay)
+
+    train_data = YOLOObjectDetectionDataset(img_dir=args.img_dir, label_dir=args.label_dir, classes=['sheep', 'cattle', 'seal', 'camelus', 'kiang', 'zebra'], transform=ultralytics.nn.modules.darts_utils._data_transforms_WAID)
+    train_queue = torch.utils.data.DataLoader(train_data, batch_size=args.batch_size)
+
+    valid_data = YOLOObjectDetectionDataset(img_dir=args.val_img_dir, label_dir=args.val_label_dir, classes=['sheep', 'cattle', 'seal', 'camelus', 'kiang', 'zebra'], transform=ultralytics.nn.modules.darts_utils._val_data_transforms_WAID(args))
+    valid_queue = torch.utils.data.DataLoader(valid_data, batch_size=args.batch_size)
+
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, float(args.epochs))
+    for epoch in range(args.epochs):
+        for step, (input, target) in enumerate(train_queue):
+            print('almost there')
+    
+    
     print('in here')
     teacher = YOLO('yolov8-LDconv.yaml')
     model_state_dict = torch.load("/kaggle/input/yolov8m-pt/yolov8m.pt")
@@ -215,20 +231,9 @@ def main():
     model = model.cuda()
     logging.info("param size = %fMB", ultralytics.nn.modules.darts_utils.count_parameters_in_MB(model))
 
-    criterion = YOLOKDLoss().cuda()
-    optimizer = torch.optim.SGD(model.parameters(), lr=args.learning_rate, momentum=args.momentum, weight_decay=args.weight_decay)
+    
 
-    train_data = YOLOObjectDetectionDataset(img_dir=args.img_dir, label_dir=args.label_dir, classes=['sheep', 'cattle', 'seal', 'camelus', 'kiang', 'zebra'], transform=ultralytics.nn.modules.darts_utils._data_transforms_WAID)
-    train_queue = torch.utils.data.DataLoader(train_data, batch_size=args.batch_size)
-
-    valid_data = YOLOObjectDetectionDataset(img_dir=args.val_img_dir, label_dir=args.val_label_dir, classes=['sheep', 'cattle', 'seal', 'camelus', 'kiang', 'zebra'], transform=ultralytics.nn.modules.darts_utils._val_data_transforms_WAID(args))
-    valid_queue = torch.utils.data.DataLoader(valid_data, batch_size=args.batch_size)
-
-    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, float(args.epochs))
-
-    for epoch in range(args.epochs):
-        for step, (input, target) in enumerate(train_queue):
-            print('almost there')
+    
 
     for epoch in range(args.epochs):
         scheduler.step()
