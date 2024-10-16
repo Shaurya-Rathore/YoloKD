@@ -195,6 +195,7 @@ def main():
     print('in here')
     teacher = YOLO('yolov8-LDconv.yaml')
     model_state_dict = torch.load("/kaggle/input/yolov8m-pt/yolov8m.pt")
+    model.model.load_state_dict(model_state_dict, strict=False)
     teacher.to(device)
     np.random.seed(args.seed)
     torch.cuda.set_device(args.gpu)
