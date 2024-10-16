@@ -247,7 +247,6 @@ def train(train_queue, model, teacher, criterion, optimizer, args):
 
     print("training")
 
-    teacher.eval()
     model.train()
 
     layer_teacher = getattr(teacher.model.model, '22')
@@ -261,7 +260,7 @@ def train(train_queue, model, teacher, criterion, optimizer, args):
         optimizer.zero_grad()
 
         with torch.no_grad():
-            teacher_bbox, teacher_obj, teacher_class = teacher(input)
+            teacher_bbox, teacher_obj, teacher_class = teacher.predict(input)
 
         student_bbox, student_obj, student_class = model(input)
 
