@@ -62,7 +62,7 @@ class YOLOObjectDetectionDataset(Dataset):
     def get_class_name(self, class_id):
         return self.classes[class_id]
 
-def cu1stom_collate_fn(batch):
+def custom_collate_fn(batch):
     # Separate batch components
     images = []
     boxes = []
@@ -91,22 +91,3 @@ def cu1stom_collate_fn(batch):
     
     # Return the images, padded boxes, and padded labels
     return images, padded_boxes, padded_labels
-
-def custom_collate_fn(batch):
-        """Collates data samples into batches."""
-        new_batch = {}
-        keys = batch[0].keys()
-        values = list(zip(*[list(b.values()) for b in batch]))
-        for i, k in enumerate(keys):
-            value = values[i]
-            if k == "img":
-                value = torch.stack(value, 0)
-            if k in {"masks", "keypoints", "bboxes", "cls", "segments", "obb"}:
-                value = torch.cat(value, 0)
-            new_batch[k] = value
-        new_batch["batch_idx"] = list(new_batch["batch_idx"])
-        for i in range(len(new_batch["batch_idx"])):
-            new_batch["batch_idx"][i] += i  # add target image index for build_targets()
-        new_batch["batch_idx"] = torch.cat(new_batch["batch_idx"], 0)
-        return new_batch
-
