@@ -193,7 +193,7 @@ def main():
         logging.info('no gpu device available')
         sys.exit(1)
     print('in here')
-    teacher = YOLO('yolov8m.yaml')
+    teacher = YOLO('yolov8-LDconv.yaml')
     model_state_dict = torch.load("/kaggle/input/yolov8m-pt/yolov8m.pt")
     teacher.model.load_state_dict(model_state_dict, strict=False)
     teacher.to(device)
@@ -243,7 +243,6 @@ def train(train_queue, model, teacher, criterion, optimizer, args):
 
     print("training")
 
-    teacher.eval()
     model.train()
 
     layer_teacher = getattr(teacher.model.model, '22')
