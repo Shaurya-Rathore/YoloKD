@@ -13,6 +13,7 @@ import torch.utils
 import torchvision.datasets as dset
 import torch.backends.cudnn as cudnn
 from ultralytics.nn.modules.dataloader import YOLOObjectDetectionDataset
+from ultralytics.nn.modules.darts_utils import YOLOLoss, process_yolov8_output
 from ultralytics import YOLO
 from ultralytics.utils.loss import DFLoss, BboxLoss
 import wandb
@@ -128,15 +129,15 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 # # for name, layer in teacher.named_modules():
 # #     print(name, layer)
 teacher = YOLO('yolov8n.pt')
-layer_teacher = getattr(teacher.model.model, '22')
-layer_student = getattr(teacher.model.model, '22')
-layer_teacher.register_forward_hook(forward_hook_teacher)
-dummy = torch.rand(8,3,640,640)
-output1, output2, output3 = teacher(dummy)
-print(f'the output1 is {output1}')
-print(f'the output2 is {output2}')
-print(f'the output3 is {output3}')
-print(f'the head output is {get_shapes(outputs_teacher)}')
+# layer_teacher = getattr(teacher.model.model, '22')
+# layer_student = getattr(teacher.model.model, '22')
+# layer_teacher.register_forward_hook(forward_hook_teacher)
+# dummy = torch.rand(8,3,640,640)
+# output1, output2, output3 = teacher(dummy)
+# print(f'the output1 is {output1}')
+# print(f'the output2 is {output2}')
+# print(f'the output3 is {output3}')
+# print(f'the head output is {get_shapes(outputs_teacher)}')
 
 # YOLO Loss Class
 class YOLOKDLoss(nn.Module):
@@ -157,7 +158,7 @@ class YOLOKDLoss(nn.Module):
     def forward(self, student_preds, teacher_preds, targets):
         # Unpack predictions
         student_bbox, student_obj, student_class = student_preds
-        teacher_bbox, teacher_obj, teacher_class = teacher_preds
+        teacher_bbox, teacher_obj, teacher_class = process_yolov8_output(teacher_preds)
         target_bbox, target_obj, target_class = targets
 
         # Standard YOLO losses against ground truth
