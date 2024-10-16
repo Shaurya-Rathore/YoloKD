@@ -12,7 +12,7 @@ import ultralytics.nn.modules.genotypes
 import torch.utils
 import torchvision.datasets as dset
 import torch.backends.cudnn as cudnn
-from ultralytics.nn.modules.dataloader import YOLOObjectDetectionDataset
+from ultralytics.nn.modules.dataloader import YOLOObjectDetectionDataset, custom_collate_fn
 from ultralytics.nn.modules.darts_utils import YOLOLoss, process_yolov8_output
 from ultralytics import YOLO
 from ultralytics.utils.loss import DFLoss, BboxLoss
@@ -201,10 +201,10 @@ def main():
     optimizer = torch.optim.SGD(model.parameters(), lr=args.learning_rate, momentum=args.momentum, weight_decay=args.weight_decay)
 
     train_data = YOLOObjectDetectionDataset(img_dir=args.img_dir, label_dir=args.label_dir, classes=['sheep', 'cattle', 'seal', 'camelus', 'kiang', 'zebra'], transform=ultralytics.nn.modules.darts_utils._data_transforms_WAID)
-    train_queue = torch.utils.data.DataLoader(train_data, batch_size=args.batch_size)
+    train_queue = torch.utils.data.DataLoader(train_data, batch_size=args.batch_size, pin_memory=True, num_workers=2,collate_fn=custom_collate_fn)
 
     valid_data = YOLOObjectDetectionDataset(img_dir=args.val_img_dir, label_dir=args.val_label_dir, classes=['sheep', 'cattle', 'seal', 'camelus', 'kiang', 'zebra'], transform=ultralytics.nn.modules.darts_utils._val_data_transforms_WAID(args))
-    valid_queue = torch.utils.data.DataLoader(valid_data, batch_size=args.batch_size)
+    valid_queue = torch.utils.data.DataLoader(valid_data, batch_size=args.batch_size, pin_memory=True, num_workers=2,collate_fn=custom_collate_fn)
 
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, float(args.epochs))
     for epoch in range(args.epochs):
