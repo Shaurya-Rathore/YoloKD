@@ -320,23 +320,23 @@ class DARTSBackbone(nn.Module):
 
   def forward(self, x):
     # Use autocast for mixed precision
-    #with autocast():
-    s0 = s1 = self.stem(x)
-    C2, C3 = None, None  # Capture outputs from the 6th and 10th cells
+    with autocast():
+      s0 = s1 = self.stem(x)
+      C2, C3 = None, None  # Capture outputs from the 6th and 10th cells
 
-    for i, cell in enumerate(self.cells):
-      # Apply weights based on the type of cell
-      if cell.reduction:
-        weights = F.softmax(self.alphas_reduce, dim=-1)
-      else:
-        weights = F.softmax(self.alphas_normal, dim=-1)
+      for i, cell in enumerate(self.cells):
+        # Apply weights based on the type of cell
+        if cell.reduction:
+          weights = F.softmax(self.alphas_reduce, dim=-1)
+        else:
+          weights = F.softmax(self.alphas_normal, dim=-1)
 
-      s0, s1 = s1, cell(s0, s1, weights)  # Forward pass through each cell
+        s0, s1 = s1, cell(s0, s1, weights)  # Forward pass through each cell
 
-      if i == self.cell6_index:
-        C2 = s1  # Output from the 6th cell
-      if i == self.cell10_index:
-        C3 = s1  # Output from the 10th cell
+        if i == self.cell6_index:
+          C2 = s1  # Output from the 6th cell
+        if i == self.cell10_index:
+          C3 = s1  # Output from the 10th cell
 
     C4 = s1  # Final output from the backbone
 
@@ -354,9 +354,9 @@ class DARTSBackbone(nn.Module):
     optimizer.zero_grad()  # Clear gradients
     
     # Use autocast for forward pass
-    #with autocast():
-    output = model(data)  # Forward pass
-    loss = F.mse_loss(output[0], target)  # Example loss function
+    with autocast():
+      output = model(data)  # Forward pass
+      loss = F.mse_loss(output[0], target)  # Example loss function
 
     # Scale loss and backward pass
     scaler.scale(loss).backward()
@@ -378,11 +378,16 @@ class NeckFPN(nn.Module):
         self.conv_c4 = nn.Conv2d(in_channels[2], 256, kernel_size=1)  # C4 (75x75), reduce channels to 256
         self.conv_c3 = nn.Conv2d(in_channels[1], 256, kernel_size=1)  # C3 (150x150), reduce channels to 256
         self.conv_c2 = nn.Conv2d(in_channels[0], 256, kernel_size=1)  # C2 (300x300), reduce channels to 256
-
+        self.conv_c4 = self.conv_c4.to(torch.float16)
+        self.conv_c3 = self.conv_c3.to(torch.float16)
+        self.conv_c2 = self.conv_c2.to(torch.float16)
         # Final 3x3 convolutions after feature map fusion
         self.final_c2 = nn.Conv2d(256, 256, kernel_size=3, padding=1)  # Final C2 (300x300)
         self.final_c3 = nn.Conv2d(256, 256, kernel_size=3, padding=1)  # Final C3 (150x150)
         self.final_c4 = nn.Conv2d(256, 256, kernel_size=3, padding=1)  # Final C4 (75x75)
+        self.final_c2 = self.final_c2.to(torch.float16)
+        self.final_c2 = self.final_c2.to(torch.float16)
+        self.final_c2 = self.final_c2.to(torch.float16)
 
     def forward(self, c2, c3, c4):
         # c2: 300x300 from the 6th backbone cell (shallower, high-resolution, fewer channels)
