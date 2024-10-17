@@ -93,8 +93,7 @@ def _data_transforms_WAID(args):
     transforms.RandomHorizontalFlip(),
     transforms.ToTensor(),
     transforms.Normalize(WAID_MEAN, WAID_STD),
-    transforms.Lambda(lambda x: x / 255.0),
-  ])
+    ])
   if args.cutout:
     train_transform.transforms.append(Cutout(args.cutout_length))
 
@@ -108,6 +107,35 @@ def _val_data_transforms_WAID(args):
     transforms.Lambda(cv2_resize),    
     transforms.ToTensor(),
     transforms.Normalize(WAID_MEAN, WAID_STD),
+    ])
+  return val_transform
+
+def _data_transforms_WAID_shaurya(args):
+  WAID_MEAN = [0.4788, 0.4791, 0.4789]
+  WAID_STD = [0.2009, 0.2009, 0.2009]
+
+  train_transform = transforms.Compose([
+    transforms.Lambda(cv2_resize),  
+    # transforms.RandomCrop(32, padding=4),
+    transforms.RandomHorizontalFlip(),
+    transforms.ToTensor(),
+    transforms.Normalize(WAID_MEAN, WAID_STD),
+    transforms.Lambda(lambda x: x / 255.0),
+  ])
+  if args.cutout:
+    train_transform.transforms.append(Cutout(args.cutout_length))
+
+  return train_transform
+
+def _val_data_transforms_WAID_shaurya(args):
+  WAID_MEAN = [0.4804, 0.4807, 0.4805]
+  WAID_STD = [0.1996, 0.1995, 0.1995]
+
+  val_transform = transforms.Compose([
+    transforms.Lambda(cv2_resize),    
+    transforms.ToTensor(),
+    transforms.Normalize(WAID_MEAN, WAID_STD),
+    transforms.Lambda(lambda x: x / 255.0),
     ])
   return val_transform
 
