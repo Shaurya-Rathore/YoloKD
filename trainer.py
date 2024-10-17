@@ -264,6 +264,7 @@ def train(train_queue, model, teacher, criterion, optimizer, args):
             teacher_preds = teacher(input)
             print(f'teacher preds{teacher_preds}')
 
+        print(model(input))
         student_bbox, student_obj, student_class = model(input)
 
         student_preds = (student_bbox, student_obj, student_class)
