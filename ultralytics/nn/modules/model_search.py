@@ -320,25 +320,25 @@ class DARTSBackbone(nn.Module):
 
   def forward(self, x):
     # Use autocast for mixed precision
-    with autocast():
-      s0 = s1 = self.stem(x)
-      C2, C3 = None, None  # Capture outputs from the 6th and 10th cells
+    #with autocast():
+    s0 = s1 = self.stem(x)
+    C2, C3 = None, None  # Capture outputs from the 6th and 10th cells
 
-      for i, cell in enumerate(self.cells):
-        # Apply weights based on the type of cell
-        if cell.reduction:
-          weights = F.softmax(self.alphas_reduce, dim=-1)
-        else:
-          weights = F.softmax(self.alphas_normal, dim=-1)
+    for i, cell in enumerate(self.cells):
+      # Apply weights based on the type of cell
+      if cell.reduction:
+        weights = F.softmax(self.alphas_reduce, dim=-1)
+      else:
+        weights = F.softmax(self.alphas_normal, dim=-1)
 
-        s0, s1 = s1, cell(s0, s1, weights)  # Forward pass through each cell
+      s0, s1 = s1, cell(s0, s1, weights)  # Forward pass through each cell
 
-        if i == self.cell6_index:
-          C2 = s1  # Output from the 6th cell
-        if i == self.cell10_index:
-          C3 = s1  # Output from the 10th cell
+      if i == self.cell6_index:
+        C2 = s1  # Output from the 6th cell
+      if i == self.cell10_index:
+        C3 = s1  # Output from the 10th cell
 
-      C4 = s1  # Final output from the backbone
+    C4 = s1  # Final output from the backbone
 
     # Free unused GPU memory
     torch.cuda.empty_cache()
@@ -354,9 +354,9 @@ class DARTSBackbone(nn.Module):
     optimizer.zero_grad()  # Clear gradients
     
     # Use autocast for forward pass
-    with autocast():
-      output = model(data)  # Forward pass
-      loss = F.mse_loss(output[0], target)  # Example loss function
+    #with autocast():
+    output = model(data)  # Forward pass
+    loss = F.mse_loss(output[0], target)  # Example loss function
 
     # Scale loss and backward pass
     scaler.scale(loss).backward()
