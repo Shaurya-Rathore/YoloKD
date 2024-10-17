@@ -31,6 +31,7 @@ outputs_teacher = []
 outputs_student = []
 
 def forward_hook_teacher(module, input, output):
+    global outputs_teacher
     outputs_teacher.append(output)
 
 def forward_hook_student(module, input, output):
@@ -264,6 +265,7 @@ def train(train_queue, model, teacher, criterion, optimizer, args):
 
         with torch.no_grad():
             print('pre-predict')
+            global outputs_teacher
             outputs_teacher.clear()
             _ = teacher(input)
             print(f'trying for hook {outputs_teacher}')
