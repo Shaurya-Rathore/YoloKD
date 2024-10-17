@@ -266,7 +266,9 @@ def train(train_queue, model, teacher, criterion, optimizer, args):
         with torch.no_grad():
             print('pre-predict')
             output = teacher(input)
+            print(output)
         
+        print('trying for hook')
         output = outputs_teacher[0]
         output = output[0]
 
