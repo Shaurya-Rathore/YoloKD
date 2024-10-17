@@ -160,7 +160,7 @@ class YOLOKDLoss(nn.Module):
 
     def forward(self, student_preds, teacher_preds, targets):
         # Unpack predictions
-        student_bbox, student_obj, student_class = student_preds
+        student_bbox, student_obj, student_class = process_yolov8_output(student_preds)
         teacher_bbox, teacher_obj, teacher_class = process_yolov8_output(teacher_preds)
         target_bbox, target_obj, target_class = targets
 
@@ -265,14 +265,15 @@ def train(train_queue, model, teacher, criterion, optimizer, args):
             print(f'teacher preds{teacher_preds}')
 
         print(model(input))
-        student_bbox, student_obj, student_class = model(input)
-
-        student_preds = (student_bbox, student_obj, student_class)
+        student_preds = model(input)
 
         target_bbox = target['bbox']
         target_obj = target['obj']
         target_class = target['class']
         targets = (target_bbox, target_obj, target_class)
+        
+        student_bbox, student_obj, student_class = process_yolov8_output(student_preds)
+
 
         print('basics')
         loss = criterion(student_preds, teacher_preds, targets)
