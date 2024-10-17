@@ -246,7 +246,7 @@ def main():
         print("before training")
         model.drop_path_prob = args.drop_path_prob * epoch / args.epochs
         train_acc, train_obj = train(train_queue, model, teacher, criterion, optimizer, args)
-        print(train_acc)
+        print(f'train accuracy: {train_acc}')
         logging.info('train_acc %f', train_acc)
         valid_acc, valid_obj = infer(valid_queue, model, criterion)
         logging.info('valid_acc %f', valid_acc)
