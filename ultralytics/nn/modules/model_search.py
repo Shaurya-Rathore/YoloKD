@@ -399,16 +399,22 @@ class NeckFPN(nn.Module):
 
         # Step 2: Upsample C4 (75x75 -> 150x150) and fuse with C3
         c4_upsampled = F.interpolate(c4_out, scale_factor=2, mode='nearest')  # 75x75 -> 150x150
+        c4_upsampled = c4_upsampled.to(torch.float16)
         c3_fused = self.conv_c3(c3) + c4_upsampled  # Fuse C3 (150x150) and upsampled C4 (150x150)
-
+        c3_fused = c3_fused.to(torch.float16)
         # Step 3: Upsample fused C3 (150x150 -> 300x300) and fuse with C2
         c3_upsampled = F.interpolate(c3_fused, scale_factor=2, mode='nearest')  # 150x150 -> 300x300
+        c3_upsampled = c3_upsampled.to(torch.float16)
         c2_fused = self.conv_c2(c2) + c3_upsampled  # Fuse C2 (300x300) and upsampled C3 (300x300)
+        c2_fused = c2_fused.to(torch.float16)
 
         # Step 4: Apply final 3x3 convolutions to each fused feature map
         c2_final = self.final_c2(c2_fused)  # Final output for C2 (300x300)
         c3_final = self.final_c3(c3_fused)  # Final output for C3 (150x150)
         c4_final = self.final_c4(c4_out)    # Final output for C4 (75x75)
+        final_c2 = final_c2.to(torch.float16)
+        final_c2 = final_c2.to(torch.float16)
+        final_c2 = final_c2.to(torch.float16)
 
         return c2_final, c3_final, c4_final  # Return feature maps at 300x300, 150x150, 75x75
 
