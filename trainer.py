@@ -247,7 +247,6 @@ def main():
 
 # Training function
 def train(train_queue, model, teacher, criterion, optimizer, args):
-    outputs_teacher = []
     objs = ultralytics.nn.modules.darts_utils.AvgrageMeter()
     top1 = ultralytics.nn.modules.darts_utils.AvgrageMeter()
     top5 = ultralytics.nn.modules.darts_utils.AvgrageMeter()
@@ -265,12 +264,11 @@ def train(train_queue, model, teacher, criterion, optimizer, args):
 
         with torch.no_grad():
             print('pre-predict')
-            output = teacher(input)
-            print(output)
-        
-        print('trying for hook')
-        output = outputs_teacher[0]
-        output = output[0]
+            outputs_teacher.clear()
+            _ = teacher(input)
+            print(f'trying for hook {outputs_teacher}')
+            output = outputs_teacher[0]
+            output = output[0]
 
         print(f'student outputs: {model(input)}')
         student_preds = model(input)
