@@ -214,7 +214,10 @@ def main():
     teacher = YOLO('yolov8-LDconv.yaml')
     model_state_dict = torch.load("/kaggle/input/yolov8m-pt/yolov8m.pt")
     teacher.model.load_state_dict(model_state_dict, strict=False)
+
     teacher.to(device)
+    layer_teacher = getattr(teacher.model.model, '22')
+    layer_teacher.register_forward_hook(forward_hook_teacher)
     teacher.train(data='/kaggle/input/d/shauryasinghrathore/waiddataset/WAID-main/WAID-main/WAID/data.yaml', epochs=1, batch=8, optimizer= 'AdamW')
     np.random.seed(args.seed)
     torch.cuda.set_device(args.gpu)
@@ -244,6 +247,7 @@ def main():
 
 # Training function
 def train(train_queue, model, teacher, criterion, optimizer, args):
+    outputs_teacher = 0
     objs = ultralytics.nn.modules.darts_utils.AvgrageMeter()
     top1 = ultralytics.nn.modules.darts_utils.AvgrageMeter()
     top5 = ultralytics.nn.modules.darts_utils.AvgrageMeter()
@@ -252,9 +256,6 @@ def train(train_queue, model, teacher, criterion, optimizer, args):
 
     model.train()
 
-    layer_teacher = getattr(teacher.model.model, '22')
-    layer_student = getattr(teacher.model.model, '22')
-    layer_teacher.register_forward_hook(forward_hook_teacher)
     # layer_student.register_forward_hook(forward_hook_student)
 
     print(f'train queue length: {len(train_queue)}')
