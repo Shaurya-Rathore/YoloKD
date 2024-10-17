@@ -160,8 +160,8 @@ class YOLOKDLoss(nn.Module):
 
     def forward(self, student_preds, teacher_preds, targets):
         # Unpack predictions
-        student_bbox, student_obj, student_class = process_yolov8_output(student_preds)
-        teacher_bbox, teacher_obj, teacher_class = process_yolov8_output(teacher_preds)
+        student_bbox, student_class, student_obj = process_yolov8_output(student_preds)
+        teacher_bbox, teacher_class, teacher_obj = process_yolov8_output(teacher_preds)
         target_bbox, target_obj, target_class = targets
 
         # Standard YOLO losses against ground truth
@@ -262,9 +262,8 @@ def train(train_queue, model, teacher, criterion, optimizer, args):
         with torch.no_grad():
             print('pre-predict')
             teacher_preds = teacher(input)
-            print(f'teacher preds{teacher_preds}')
 
-        print(model(input))
+        print(f'student outputs: {model(input)}')
         student_preds = model(input)
 
         target_bbox = target['bbox']
@@ -272,7 +271,7 @@ def train(train_queue, model, teacher, criterion, optimizer, args):
         target_class = target['class']
         targets = (target_bbox, target_obj, target_class)
         
-        student_bbox, student_obj, student_class = process_yolov8_output(student_preds)
+        student_bbox, student_class, student_obj = process_yolov8_output(student_preds)
 
 
         print('basics')
