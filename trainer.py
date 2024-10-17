@@ -207,7 +207,10 @@ def main():
     valid_queue = torch.utils.data.DataLoader(valid_data, batch_size=args.batch_size, pin_memory=True, num_workers=2,collate_fn=custom_collate_fn)
 
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, float(args.epochs))
+    print('before epochs')
+    print(f'train queue length: {len(train_queue)}')
     for epoch in range(args.epochs):
+        print(f'epochs: {epoch}')
         for step, (input, target) in enumerate(train_queue):
             print(input)
             print('almost there')
