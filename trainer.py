@@ -225,11 +225,7 @@ def main():
     genotype = eval("ultralytics.nn.modules.genotypes.%s" % args.arch)
     
     model = model.cuda()
-    logging.info("param size = %fMB", ultralytics.nn.modules.darts_utils.count_parameters_in_MB(model))
-
-    
-
-    
+    logging.info("param size = %fMB", ultralytics.nn.modules.darts_utils.count_parameters_in_MB(model))    
 
     for epoch in range(args.epochs):
         scheduler.step()
