@@ -111,7 +111,7 @@ class FactorizedReduce(nn.Module):
         out = self.bn(out)
         return out
 
-class LDConv(nn.Module):
+"""class LDConv(nn.Module):
     def __init__(self, inc, outc, num_param, stride=1, bias=None):
         super(LDConv, self).__init__()
         self.num_param = num_param
@@ -251,7 +251,7 @@ class LDConv(nn.Module):
         # using the column conv as follow， then, Conv2d(inc, outc, kernel_size=(num_param, 1), stride=(num_param, 1), bias=bias)
         
         x_offset = rearrange(x_offset, 'b c h w n -> b c (h n) w')
-        return x_offset
+        return x_offset"""
 
 # Dictionary of operations, including the new Linear Deformable Convolution
 OPS = {
@@ -263,7 +263,7 @@ OPS = {
     'sep_conv_5x5': lambda C, stride, affine: SepConv(C, C, 5, stride, 2, affine=affine),
     'dil_conv_3x3': lambda C, stride, affine: DilConv(C, C, 3, stride, 2, 2, affine=affine),
     # 'dil_conv_5x5': lambda C, stride, affine: DilConv(C, C, 5, stride, 2, 2, affine=affine),
-    'lde_conv_3x3': lambda C, stride, affine: LDConv(C, C, 6, stride),
+    #'lde_conv_3x3': lambda C, stride, affine: LDConv(C, C, 6, stride),
 }
 
 # Test input data (batch_size, channels, height, width)
