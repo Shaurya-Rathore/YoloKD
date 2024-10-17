@@ -93,6 +93,7 @@ def _data_transforms_WAID(args):
     transforms.RandomHorizontalFlip(),
     transforms.ToTensor(),
     transforms.Normalize(WAID_MEAN, WAID_STD),
+    transforms.Lambda(lambda x: x / 255.0),
   ])
   if args.cutout:
     train_transform.transforms.append(Cutout(args.cutout_length))
