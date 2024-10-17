@@ -208,15 +208,6 @@ def main():
 
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, float(args.epochs))
     print('before epochs')
-    print(f'train queue length: {len(train_queue)}')
-    for epoch in range(args.epochs):
-        print(f'epochs: {epoch}')
-        for step, (input, target) in enumerate(train_queue):
-            print(input)
-            print('almost there')
-    
-    
-    print('in here')
     teacher = YOLO('yolov8-LDconv.yaml')
     model_state_dict = torch.load("/kaggle/input/yolov8m-pt/yolov8m.pt")
     teacher.model.load_state_dict(model_state_dict, strict=False)
