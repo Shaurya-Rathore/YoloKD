@@ -247,7 +247,7 @@ def main():
 
 # Training function
 def train(train_queue, model, teacher, criterion, optimizer, args):
-    outputs_teacher = 0
+    outputs_teacher = []
     objs = ultralytics.nn.modules.darts_utils.AvgrageMeter()
     top1 = ultralytics.nn.modules.darts_utils.AvgrageMeter()
     top5 = ultralytics.nn.modules.darts_utils.AvgrageMeter()
