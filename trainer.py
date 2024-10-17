@@ -129,18 +129,21 @@ args = parser.parse_args()
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-# # for name, layer in teacher.named_modules():
-# #     print(name, layer)
+# for name, layer in teacher.named_modules():
+#     print(name, layer)
 # teacher = YOLO('yolov8n.yaml')
 # layer_teacher = getattr(teacher.model.model, '22')
 # layer_student = getattr(teacher.model.model, '22')
 # layer_teacher.register_forward_hook(forward_hook_teacher)
 # dummy = torch.rand(8,3,640,640)
-# output1, output2, output3 = teacher(dummy)
-# print(f'the output1 is {output1}')
-# print(f'the output2 is {output2}')
-# print(f'the output3 is {output3}')
-# print(f'the head output is {get_shapes(outputs_teacher)}')
+# output1= teacher(dummy)
+# # print(f'the output1 is {len(output1)}')
+# # print(f'the output2 is {output2}')
+# # print(f'the output3 is {output3}')
+# output = outputs_teacher[0]
+# output = output[0]
+# print(f'the head output is {get_shapes(output[0])}')
+
 
 # YOLO Loss Class
 class YOLOKDLoss(nn.Module):
@@ -251,7 +254,7 @@ def train(train_queue, model, teacher, criterion, optimizer, args):
 
     layer_teacher = getattr(teacher.model.model, '22')
     layer_student = getattr(teacher.model.model, '22')
-    # layer_teacher.register_forward_hook(forward_hook_teacher)
+    layer_teacher.register_forward_hook(forward_hook_teacher)
     # layer_student.register_forward_hook(forward_hook_student)
 
     print(f'train queue length: {len(train_queue)}')
@@ -261,7 +264,10 @@ def train(train_queue, model, teacher, criterion, optimizer, args):
 
         with torch.no_grad():
             print('pre-predict')
-            teacher_preds = teacher(input)
+            output = teacher(input)
+        
+        output = outputs_teacher[0]
+        output = output[0]
 
         print(f'student outputs: {model(input)}')
         student_preds = model(input)
@@ -273,9 +279,8 @@ def train(train_queue, model, teacher, criterion, optimizer, args):
         
         student_bbox, student_class, student_obj = process_yolov8_output(student_preds)
 
-
         print('basics')
-        loss = criterion(student_preds, teacher_preds, targets)
+        loss = criterion(student_preds, output, targets)
         print('lossed')
         loss.backward()
         nn.utils.clip_grad_norm_(model.parameters(), args.grad_clip)
@@ -290,6 +295,8 @@ def train(train_queue, model, teacher, criterion, optimizer, args):
         # Optionally log the progress every few steps
         if step % args.report_freq == 0:
             logging.info('train %03d %e %f %f', step, objs.avg, top1.avg, top5.avg)
+
+        outputs_teacher = []
 
     # Return average metrics for monitoring
     return top1.avg, objs.avg
