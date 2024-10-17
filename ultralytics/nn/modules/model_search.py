@@ -413,8 +413,8 @@ class NeckFPN(nn.Module):
         c3_final = self.final_c3(c3_fused)  # Final output for C3 (150x150)
         c4_final = self.final_c4(c4_out)    # Final output for C4 (75x75)
         final_c2 = final_c2.to(torch.float16)
-        final_c2 = final_c2.to(torch.float16)
-        final_c2 = final_c2.to(torch.float16)
+        final_c3 = final_c3.to(torch.float16)
+        final_c4 = final_c4.to(torch.float16)
 
         return c2_final, c3_final, c4_final  # Return feature maps at 300x300, 150x150, 75x75
 
