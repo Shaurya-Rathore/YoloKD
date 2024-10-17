@@ -267,7 +267,7 @@ def train(train_queue, model, teacher, criterion, optimizer, args):
     # layer_teacher.register_forward_hook(forward_hook_teacher)
     # layer_student.register_forward_hook(forward_hook_student)
 
-    print(len(train_queue))
+    print(f'train queue length: {len(train_queue)}')
     for step, (input, target) in enumerate(train_queue):
         input, target = input.cuda(), target.cuda()
         optimizer.zero_grad()
