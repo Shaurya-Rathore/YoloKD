@@ -200,7 +200,7 @@ def main():
     criterion = YOLOKDLoss().cuda()
     optimizer = torch.optim.SGD(model.parameters(), lr=args.learning_rate, momentum=args.momentum, weight_decay=args.weight_decay)
 
-    train_data = YOLOObjectDetectionDataset(img_dir=args.img_dir, label_dir=args.label_dir, classes=['sheep', 'cattle', 'seal', 'camelus', 'kiang', 'zebra'], transform=ultralytics.nn.modules.darts_utils._data_transforms_WAID)
+    train_data = YOLOObjectDetectionDataset(img_dir=args.img_dir, label_dir=args.label_dir, classes=['sheep', 'cattle', 'seal', 'camelus', 'kiang', 'zebra'], transform=ultralytics.nn.modules.darts_utils._data_transforms_WAID(args))
     train_queue = torch.utils.data.DataLoader(train_data, batch_size=args.batch_size, pin_memory=True, num_workers=2,collate_fn=custom_collate_fn)
 
     valid_data = YOLOObjectDetectionDataset(img_dir=args.val_img_dir, label_dir=args.val_label_dir, classes=['sheep', 'cattle', 'seal', 'camelus', 'kiang', 'zebra'], transform=ultralytics.nn.modules.darts_utils._val_data_transforms_WAID(args))
@@ -208,15 +208,6 @@ def main():
 
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, float(args.epochs))
     print('before epochs')
-    print(f'train queue length: {len(train_queue)}')
-    for epoch in range(args.epochs):
-        print(f'epochs: {epoch}')
-        for step, (input, target) in enumerate(train_queue):
-            print(input)
-            print('almost there')
-    
-    
-    print('in here')
     teacher = YOLO('yolov8-LDconv.yaml')
     model_state_dict = torch.load("/kaggle/input/yolov8m-pt/yolov8m.pt")
     teacher.model.load_state_dict(model_state_dict, strict=False)
@@ -234,11 +225,7 @@ def main():
     genotype = eval("ultralytics.nn.modules.genotypes.%s" % args.arch)
     
     model = model.cuda()
-    logging.info("param size = %fMB", ultralytics.nn.modules.darts_utils.count_parameters_in_MB(model))
-
-    
-
-    
+    logging.info("param size = %fMB", ultralytics.nn.modules.darts_utils.count_parameters_in_MB(model))    
 
     for epoch in range(args.epochs):
         scheduler.step()
