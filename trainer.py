@@ -217,8 +217,9 @@ def main():
     teacher.model.load_state_dict(model_state_dict, strict=False)
 
     teacher.to(device)
-    layer_teacher = getattr(teacher.model.model, '22')
     teacher.train(data='/kaggle/input/d/shauryasinghrathore/waiddataset/WAID-main/WAID-main/WAID/data.yaml', epochs=1, batch=8, optimizer= 'AdamW')
+    layer_teacher = getattr(teacher.model.model, '22')
+
     print(layer_teacher)
     if hasattr(layer_teacher, "_backward_hooks"):
         print('Removing backward hooks')
