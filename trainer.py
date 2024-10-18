@@ -213,6 +213,11 @@ def main():
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, float(args.epochs))
     print('before epochs')
     teacher = YOLO('yolov8-LDconv.yaml')
+    for module in teacher.modules():
+        if hasattr(module, "_backward_hooks"):
+            module._backward_hooks = {}
+            print('doing')
+        print('done')
     model_state_dict = torch.load("/kaggle/input/yolov8m-pt/yolov8m.pt")
     teacher.model.load_state_dict(model_state_dict, strict=False)
 
