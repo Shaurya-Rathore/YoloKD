@@ -226,10 +226,7 @@ def main():
     layer_teacher = getattr(teacher.model.model, '22')
 
     print(layer_teacher)
-    if hasattr(layer_teacher, "_backward_hooks"):
-        print('Removing backward hooks')
-        del layer_teacher._backward_hooks
-    layer_teacher.register_forward_hook(forward_hook_teacher)
+    layer_teacher.dfl.register_forward_hook(forward_hook_teacher)
     np.random.seed(args.seed)
     torch.cuda.set_device(args.gpu)
     cudnn.benchmark = True
