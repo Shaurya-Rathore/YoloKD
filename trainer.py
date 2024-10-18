@@ -218,12 +218,12 @@ def main():
 
     teacher.to(device)
     layer_teacher = getattr(teacher.model.model, '22')
-    layer_teacher.register_forward_hook(forward_hook_teacher)
     teacher.train(data='/kaggle/input/d/shauryasinghrathore/waiddataset/WAID-main/WAID-main/WAID/data.yaml', epochs=1, batch=8, optimizer= 'AdamW')
     print(layer_teacher)
     if hasattr(layer_teacher, "_backward_hooks"):
         print('Removing backward hooks')
         del layer_teacher._backward_hooks
+    layer_teacher.register_forward_hook(forward_hook_teacher)
     np.random.seed(args.seed)
     torch.cuda.set_device(args.gpu)
     cudnn.benchmark = True
