@@ -75,7 +75,7 @@ class DummyYOLOStudent(nn.Module):
             nn.BatchNorm2d(128),
             nn.ReLU(),
             
-            nn.Conv2d(128, num_classes + 4, kernel_size=1),  # num_classes + 5 (for bbox coordinates + obj score)
+            nn.Conv2d(128, num_classes + 4, kernel_size=1),  # num_classes + 4 (for bbox coordinates + obj score)
         )
         
     def forward(self, x):
@@ -141,7 +141,9 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 # output = outputs_teacher[0]
 # output = output[0]
 # print(f'the head output is {get_shapes(output[0])}')
-
+input = torch.rand(2,3,640,640)
+model = DummyYOLOStudent()
+print(model(input).shape)
 
 # YOLO Loss Class
 class YOLOKDLoss(nn.Module):
