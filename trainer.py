@@ -97,7 +97,7 @@ class DummyYOLOStudent(nn.Module):
 
 # Argument Parsing
 parser = argparse.ArgumentParser("WAID")
-parser.add_argument('--img_dir', type=str, default='/kaggle/input/ooga-dataset/ooga/ooga-main/ooga/', help='location of images')
+parser.add_argument('--img_dir', type=str, default='/kaggle/input/ooga-dataset/ooga/ooga-main/ooga/train/', help='location of images')
 parser.add_argument('--label_dir', type=str, default='/kaggle/input/ooga-dataset/ooga/ooga-main/ooga/labels/train/', help='location labels')
 parser.add_argument('--val_img_dir', type=str, default='/kaggle/input/ooga-dataset/ooga/ooga-main/ooga/images/valid/', help='location of images')
 parser.add_argument('--val_label_dir', type=str, default='/kaggle/input/ooga-dataset/ooga/ooga-main/ooga/labels/valid/', help='location labels')
@@ -211,21 +211,23 @@ def main():
 
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, float(args.epochs))
     print('before epochs')
-    teacher = YOLO('yolov8-LDconv.yaml')
+    """teacher = YOLO('yolov8-LDconv.yaml')
     model_state_dict = torch.load("/kaggle/input/yolov8m-pt/yolov8m.pt")
     teacher.model.load_state_dict(model_state_dict, strict=False)
 
     teacher.to(device)
-    teacher.train(data='/kaggle/input/d/shauryasinghrathore/waiddataset/WAID-main/WAID-main/WAID/data.yaml', epochs=1, batch=8, optimizer= 'AdamW')
+    teacher.train(data='/kaggle/input/d/shauryasinghrathore/waiddataset/WAID-main/WAID-main/WAID/data.yaml', epochs=1, batch=8, optimizer= 'AdamW')"""
+    teacher = YOLO()
+    results = model(args.img_dir)
 
-    for module in teacher.modules():
+    """for module in teacher.modules():
         if hasattr(module, "_backward_hooks"):
             module._backward_hooks = {}
         print('done')
     layer_teacher = getattr(teacher.model.model, '22')
 
     print(layer_teacher)
-    layer_teacher.dfl.register_forward_hook(forward_hook_teacher)
+    layer_teacher.dfl.register_forward_hook(forward_hook_teacher)"""
     np.random.seed(args.seed)
     torch.cuda.set_device(args.gpu)
     cudnn.benchmark = True
