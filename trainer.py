@@ -48,7 +48,7 @@ def get_shapes(obj):
         return None
     
 class DummyYOLOStudent(nn.Module):
-    def __init__(self, num_classes=80):
+    def __init__(self, num_classes=6):
         super(DummyYOLOStudent, self).__init__()
         
         # Backbone (simple convolution layers instead of YOLO-like backbone)
@@ -75,7 +75,7 @@ class DummyYOLOStudent(nn.Module):
             nn.BatchNorm2d(128),
             nn.ReLU(),
             
-            nn.Conv2d(128, num_classes + 5, kernel_size=1),  # num_classes + 5 (for bbox coordinates + obj score)
+            nn.Conv2d(128, num_classes + 4, kernel_size=1),  # num_classes + 5 (for bbox coordinates + obj score)
         )
         
     def forward(self, x):
@@ -91,11 +91,8 @@ class DummyYOLOStudent(nn.Module):
         # BBox predictions: 4 coordinates per bounding box (center_x, center_y, width, height)
         # Objectness prediction: 1 score for each anchor
         # Class prediction: num_classes probabilities for each anchor
-        pred_bbox = x[:, :, :4]  # First 4 channels for bbox
-        pred_obj = x[:, :, 4:5]  # 5th channel for objectness score
-        pred_class = x[:, :, 5:]  # Remaining channels for class predictions
         
-        return pred_bbox, pred_obj, pred_class
+        return x
 
 
 # Argument Parsing
