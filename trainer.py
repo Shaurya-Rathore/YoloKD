@@ -212,7 +212,7 @@ def main():
     model_state_dict = torch.load("/kaggle/input/yolov8m-pt/yolov8m.pt")
     teacher.model.load_state_dict(model_state_dict, strict=False)
     teacher.to(device)
-    teacher.train(data='/kaggle/input/ooga-dataset/ooga/ooga-main/ooga/data.yaml', epochs=1, batch=8, optimizer= 'AdamW')
+    teacher.train(data='/kaggle/input/ooga-dataset/ooga/ooga-main/ooga/data.yaml', epochs=150, batch=8, optimizer= 'AdamW')
     np.random.seed(args.seed)
     torch.cuda.set_device(args.gpu)
     cudnn.benchmark = True
