@@ -174,7 +174,9 @@ def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr):
 
     optimizer.zero_grad()
     logits = model(input)
-    loss = criterion(logits, target)
+    print("logits",logits.shape)
+    dbox,cls,objectness = process_yolov8_output(logits)
+    loss = criterion((dbox,cls,objectness), target)
 
     loss.backward()
     nn.utils.clip_grad_norm(model.parameters(), args.grad_clip)
