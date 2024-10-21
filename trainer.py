@@ -209,7 +209,7 @@ def main():
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, float(args.epochs))
     print('before epochs')
     teacher = YOLO('yolov8-LDconv.yaml')
-    model_state_dict = torch.load("/kaggle/input/yolov8m-pt/yolov8m.pt")
+    model_state_dict = torch.load("/kaggle/input/yolowaid/yolov8_waid.pt")
     teacher.model.load_state_dict(model_state_dict, strict=False)
     teacher.to(device)
     teacher.train(data='/kaggle/input/ooga-dataset/ooga/ooga-main/ooga/data.yaml', epochs=150, batch=8, optimizer= 'AdamW')
