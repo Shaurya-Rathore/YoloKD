@@ -208,7 +208,7 @@ def main():
 
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, float(args.epochs))
     print('before epochs')
-    teacher = YOLO('yolov8-LDconv.yaml')
+    teacher = YOLO('yolov8m.yaml')
     model_state_dict = torch.load("/kaggle/input/yolowaid/yolov8_waid.pt")
     teacher.model.load_state_dict(model_state_dict, strict=False)
     teacher.to(device)
