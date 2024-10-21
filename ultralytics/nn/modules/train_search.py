@@ -155,11 +155,12 @@ def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr):
   top1 = darts_utils.AvgrageMeter()
   top5 = darts_utils.AvgrageMeter()
 
-  for step, (input, target) in enumerate(train_queue):
+  for step, (input,  bbox_predictions, class_predictions) in enumerate(train_queue):
     model.train()
     n = input.size(0)
-    print(f"Target shape: {target.shape}")
-    print("target",target)
+    print(f"input shape: {input.shape}")
+    print(f"Target shape: { bbox_predictions.shape, class_predictions.shape}")
+    print("target", bbox_predictions, class_predictions)
     input = Variable(input, requires_grad=False).cuda()
     target = Variable(target, requires_grad=False).cuda()
 
