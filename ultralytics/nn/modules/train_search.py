@@ -159,6 +159,7 @@ def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr):
     model.train()
     n = input.size(0)
     print(f"Target shape: {target.shape}")
+    print("target",target)
     input = Variable(input, requires_grad=False).cuda()
     target = Variable(target, requires_grad=False).cuda()
 
