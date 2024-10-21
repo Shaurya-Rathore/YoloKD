@@ -160,7 +160,8 @@ def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr):
     n = input.size(0)
     
     input = Variable(input, requires_grad=False).cuda()
-    target = Variable(target, requires_grad=False).cuda()
+    bbox_predictions = Variable(bbox_predictions, requires_grad=False).cuda()
+    class_predictions = Variable(class_predictions, requires_grad=False).cuda()
 
     print(f"input shape: {input.shape}")
     print(f"Target shape: { bbox_predictions.shape, class_predictions.shape}")
