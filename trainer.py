@@ -211,27 +211,12 @@ def main():
 
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, float(args.epochs))
     print('before epochs')
-    """teacher = YOLO('yolov8-LDconv.yaml')
+    teacher = YOLO('yolov8-LDconv.yaml')
     model_state_dict = torch.load("/kaggle/input/yolov8m-pt/yolov8m.pt")
     teacher.model.load_state_dict(model_state_dict, strict=False)
 
     teacher.to(device)
-<<<<<<< HEAD
-    teacher.train(data='/kaggle/input/d/shauryasinghrathore/waiddataset/WAID-main/WAID-main/WAID/data.yaml', epochs=1, batch=8, optimizer= 'AdamW')"""
-    teacher = YOLO()
-    results = model(args.img_dir)
-
-    """for module in teacher.modules():
-        if hasattr(module, "_backward_hooks"):
-            module._backward_hooks = {}
-        print('done')
-    layer_teacher = getattr(teacher.model.model, '22')
-
-    print(layer_teacher)
-    layer_teacher.dfl.register_forward_hook(forward_hook_teacher)"""
-=======
     teacher.train(data='/kaggle/input/ooga-dataset/ooga/ooga-main/ooga/data.yaml', epochs=150, batch=8, optimizer= 'AdamW')
->>>>>>> 60d12b1cdbdfefb287b75e54adab12f872dc8e6d
     np.random.seed(args.seed)
     torch.cuda.set_device(args.gpu)
     cudnn.benchmark = True
