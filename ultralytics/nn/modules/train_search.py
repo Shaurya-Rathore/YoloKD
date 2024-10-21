@@ -155,7 +155,7 @@ def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr):
   top1 = darts_utils.AvgrageMeter()
   top5 = darts_utils.AvgrageMeter()
 
-  for step, (input,  bbox_predictions, class_predictions) in enumerate(train_queue):
+  for step, (input,bbox_predictions, class_predictions) in enumerate(train_queue):
     model.train()
     n = input.size(0)
     
@@ -168,18 +168,19 @@ def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr):
     print("target", bbox_predictions, class_predictions)
 
     # get a random minibatch from the search queue with replacement
-    input_search, target_search = next(iter(valid_queue))
+    input_search,bbox_predictions_search,class_predictions_search = next(iter(valid_queue))
     input_search = Variable(input_search, requires_grad=False).cuda()
-    target_search = Variable(target_search, requires_grad=False).cuda()
+    bbox_predictions_search = Variable(bbox_predictions_search, requires_grad=False).cuda()
+    class_predictions_search  = Variable(class_predictions_search ,requires_grad=False).cuda()
     gc.collect()
     torch.cuda.empty_cache()
-    architect.step(input, target, input_search, target_search, lr, optimizer, unrolled=args.unrolled)
+    architect.step(input, bbox_predictions, class_predictions, input_search,bbox_predictions_search, class_predictions_search, lr, optimizer, unrolled=args.unrolled)
 
     optimizer.zero_grad()
     logits = model(input)
     print("logits",logits.shape)
     dbox,cls,objectness = process_yolov8_output(logits)
-    loss = criterion((dbox,cls,objectness), target)
+    loss = criterion((dbox,cls,objectness), (bbox_predictions, class_predictions))
 
     loss.backward()
     nn.utils.clip_grad_norm(model.parameters(), args.grad_clip)
