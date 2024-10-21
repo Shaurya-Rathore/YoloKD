@@ -599,9 +599,9 @@ class YOLOv8StudentModel(nn.Module):
       self.alphas_reduce,
     ]
 
-  def _loss(self, input, target):
+  def _loss(self, input, bbox_predictions_valid, class_predictions_valid):
     logits = self(input)
-    return self._criterion(logits, target) 
+    return self._criterion(logits, (bbox_predictions_valid, class_predictions_valid)) 
   
   def genotype(self):
 

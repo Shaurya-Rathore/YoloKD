@@ -196,21 +196,21 @@ class YOLOLoss(nn.Module):
 
     def forward(self,predictions,targets):
         for tensor in predictions:
-          pred_bbox,pred_class,pred_obj = process_yolov8_output(tensor)
+          pred_bbox,pred_class = process_yolov8_output(tensor) #,pred_obj
         # Unpack predictions and targets
         # Assuming that 'predictions' is a tuple of (bbox, objectness, class_probs)
         # And 'targets' is the same structure
         #pred_bbox, pred_obj, pred_class = predictions
-        target_bbox, target_obj, target_class = targets
+        target_bbox,  target_class = targets #target_obj,
 
         # Bounding Box Loss
         bbox_loss = self.mse(pred_bbox, target_bbox)
 
         # Objectness Loss (whether object exists in the cell or not)
-        obj_loss = self.bce(pred_obj, target_obj)
+        #obj_loss = self.bce(pred_obj, target_obj)
 
         # No-objectness Loss (penalize for false predictions of objects where none exist)
-        no_obj_loss = self.bce(1 - pred_obj, 1 - target_obj)
+        #no_obj_loss = self.bce(1 - pred_obj, 1 - target_obj)
 
         # Classification Loss (multi-class task)
         class_loss = self.ce(pred_class, target_class)
@@ -218,8 +218,8 @@ class YOLOLoss(nn.Module):
         # Combine losses
         total_loss = (
             self.lambda_bbox * bbox_loss +
-            self.lambda_obj * obj_loss +
-            self.lambda_noobj * no_obj_loss +
+            #self.lambda_obj * obj_loss +
+            #self.lambda_noobj * no_obj_loss +
             self.lambda_class * class_loss
         )
 
@@ -256,7 +256,7 @@ def process_yolov8_output(output, num_classes=6, reg_max=4):
     # Apply sigmoid to class probabilities
     cls = cls.sigmoid()
     objectness = cls.max(dim=-1).values
-    return dbox, cls, objectness
+    return dbox, cls#, objectness
 
 
 Test_Mean = [0.4766, 0.4769, 0.4767]
