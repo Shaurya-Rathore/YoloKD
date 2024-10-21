@@ -2,6 +2,7 @@ import torch
 import numpy as np
 import torch.nn as nn
 from torch.autograd import Variable
+from torch.cuda.amp import autocast
 
 
 def _concat(xs):
@@ -37,8 +38,9 @@ class Architect(object):
     self.optimizer.step()
 
   def _backward_step(self, input_valid, target_valid):
-    loss = self.model._loss(input_valid, target_valid)
-    loss.backward()
+    with autocast():
+      loss = self.model._loss(input_valid, target_valid)
+      loss.backward()
 
   def _backward_step_unrolled(self, input_train, target_train, input_valid, target_valid, eta, network_optimizer):
     unrolled_model = self._compute_unrolled_model(input_train, target_train, eta, network_optimizer)
