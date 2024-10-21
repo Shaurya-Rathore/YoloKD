@@ -26,7 +26,7 @@ parser.add_argument('--img_dir', type=str, default='/kaggle/input/waiddataset/WA
 parser.add_argument('--label_dir', type=str, default='/kaggle/input/waiddataset/WAID-main/WAID-main/WAID/labels/train', help='location labels')
 parser.add_argument('--val_img_dir', type=str, default='/kaggle/input/waiddataset/WAID-main/WAID-main/WAID/images/valid', help='location of images')
 parser.add_argument('--val_label_dir', type=str, default='/kaggle/input/waiddataset/WAID-main/WAID-main/WAID/labels/valid', help='location labels')
-parser.add_argument('--batch_size', type=int, default=8, help='batch size')
+parser.add_argument('--batch_size', type=int, default=4, help='batch size')
 parser.add_argument('--learning_rate', type=float, default=0.025, help='init learning rate')
 parser.add_argument('--learning_rate_min', type=float, default=0.001, help='min learning rate')
 parser.add_argument('--momentum', type=float, default=0.9, help='momentum')
