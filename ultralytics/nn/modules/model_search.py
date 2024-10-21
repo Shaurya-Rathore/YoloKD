@@ -412,9 +412,9 @@ class NeckFPN(nn.Module):
         c2_final = self.final_c2(c2_fused)  # Final output for C2 (300x300)
         c3_final = self.final_c3(c3_fused)  # Final output for C3 (150x150)
         c4_final = self.final_c4(c4_out)    # Final output for C4 (75x75)
-        final_c2 = final_c2.to(torch.float16)
-        final_c3 = final_c3.to(torch.float16)
-        final_c4 = final_c4.to(torch.float16)
+        c2_final = c2_final.to(torch.float16)
+        c3_final = c3_final.to(torch.float16)
+        c4_final = c4_final.to(torch.float16)
 
         return c2_final, c3_final, c4_final  # Return feature maps at 300x300, 150x150, 75x75
 
@@ -599,9 +599,9 @@ class YOLOv8StudentModel(nn.Module):
       self.alphas_reduce,
     ]
 
-  def _loss(self, input, target):
+  def _loss(self, input, bbox_predictions_valid, class_predictions_valid):
     logits = self(input)
-    return self._criterion(logits, target) 
+    return self._criterion(logits, (bbox_predictions_valid, class_predictions_valid)) 
   
   def genotype(self):
 

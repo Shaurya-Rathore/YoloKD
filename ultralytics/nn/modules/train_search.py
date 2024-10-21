@@ -26,7 +26,7 @@ parser.add_argument('--img_dir', type=str, default='/kaggle/input/waiddataset/WA
 parser.add_argument('--label_dir', type=str, default='/kaggle/input/waiddataset/WAID-main/WAID-main/WAID/labels/train', help='location labels')
 parser.add_argument('--val_img_dir', type=str, default='/kaggle/input/waiddataset/WAID-main/WAID-main/WAID/images/valid', help='location of images')
 parser.add_argument('--val_label_dir', type=str, default='/kaggle/input/waiddataset/WAID-main/WAID-main/WAID/labels/valid', help='location labels')
-parser.add_argument('--batch_size', type=int, default=64, help='batch size')
+parser.add_argument('--batch_size', type=int, default=2, help='batch size')
 parser.add_argument('--learning_rate', type=float, default=0.025, help='init learning rate')
 parser.add_argument('--learning_rate_min', type=float, default=0.001, help='min learning rate')
 parser.add_argument('--momentum', type=float, default=0.9, help='momentum')
@@ -155,24 +155,32 @@ def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr):
   top1 = darts_utils.AvgrageMeter()
   top5 = darts_utils.AvgrageMeter()
 
-  for step, (input, target) in enumerate(train_queue):
+  for step, (input,bbox_predictions, class_predictions) in enumerate(train_queue):
     model.train()
     n = input.size(0)
-
+    
     input = Variable(input, requires_grad=False).cuda()
-    target = Variable(target, requires_grad=False).cuda()
+    bbox_predictions = Variable(bbox_predictions, requires_grad=False).cuda()
+    class_predictions = Variable(class_predictions, requires_grad=False).cuda()
+
+    print(f"input shape: {input.shape}")
+    print(f"Target shape: { bbox_predictions.shape, class_predictions.shape}")
+    print("target", bbox_predictions, class_predictions)
 
     # get a random minibatch from the search queue with replacement
-    input_search, target_search = next(iter(valid_queue))
+    input_search,bbox_predictions_search,class_predictions_search = next(iter(valid_queue))
     input_search = Variable(input_search, requires_grad=False).cuda()
-    target_search = Variable(target_search, requires_grad=False).cuda()
+    bbox_predictions_search = Variable(bbox_predictions_search, requires_grad=False).cuda()
+    class_predictions_search  = Variable(class_predictions_search ,requires_grad=False).cuda()
     gc.collect()
     torch.cuda.empty_cache()
-    architect.step(input, target, input_search, target_search, lr, optimizer, unrolled=args.unrolled)
+    architect.step(input, bbox_predictions, class_predictions, input_search,bbox_predictions_search, class_predictions_search, lr, optimizer, unrolled=args.unrolled)
 
     optimizer.zero_grad()
     logits = model(input)
-    loss = criterion(logits, target)
+    print("logits",logits.shape)
+    dbox,cls,objectness = process_yolov8_output(logits)
+    loss = criterion((dbox,cls,objectness), (bbox_predictions, class_predictions))
 
     loss.backward()
     nn.utils.clip_grad_norm(model.parameters(), args.grad_clip)
