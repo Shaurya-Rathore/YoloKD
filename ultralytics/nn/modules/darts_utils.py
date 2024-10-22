@@ -7,6 +7,7 @@ from torch.autograd import Variable
 from PIL import Image
 import cv2
 import torch.nn as nn
+from torch.nn import MSELoss
 
 
 class AvgrageMeter(object):
@@ -181,8 +182,8 @@ def create_exp_dir(path, scripts_to_save=None):
       shutil.copyfile(script, dst_file)
 
 class YOLOLoss(nn.Module):
-    def _init_(self,lambda_bbox=5.0, lambda_obj=1.0, lambda_noobj=0.5, lambda_class=1.0):
-        super(YOLOLoss, self)._init_()
+    def __init__(self,lambda_bbox=5.0, lambda_obj=1.0, lambda_noobj=0.5, lambda_class=1.0):
+        super(YOLOLoss, self).__init__()
         # Weights for each component of the loss
         self.lambda_bbox = lambda_bbox
         self.lambda_obj = lambda_obj
