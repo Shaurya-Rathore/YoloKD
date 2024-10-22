@@ -54,7 +54,6 @@ def remove_all_backward_hooks(model):
         if hasattr(module, '_backward_hooks'):
             for handle_id, hook in module._backward_hooks.items():
                 hook.remove()  # Remove the hook using its handle
-            module._backward_hooks.clear()  # Clear all hooks from the layer
     
 class DummyYOLOStudent(nn.Module):
     def __init__(self, num_classes=6):
@@ -223,11 +222,16 @@ def main():
     teacher = YOLO('yolov8m.yaml')
     model_state_dict = torch.load("/kaggle/input/yolov8m-pt/yolov8m.pt")
     teacher.model.load_state_dict(model_state_dict, strict=False)
+    layer_teacher = getattr(teacher.model.model, '22')
 
     teacher.to(device)
     teacher.train(data='/kaggle/input/d/shauryasinghrathore/waiddataset/WAID-main/WAID-main/WAID/data.yaml', epochs=1, batch=8, optimizer= 'AdamW')
-    remove_all_backward_hooks(teacher.model.model)
-    layer_teacher = getattr(teacher.model.model, '22')
+    for module in teacher.model.model.modules():
+    # If the module has any registered backward hooks, remove them
+        if hasattr(module, '_backward_hooks'):
+            for handle_id, hook in module._backward_hooks.items():
+                hook.remove()
+    
     layer_teacher.register_forward_hook(forward_hook_teacher)
     np.random.seed(args.seed)
     torch.cuda.set_device(args.gpu)
