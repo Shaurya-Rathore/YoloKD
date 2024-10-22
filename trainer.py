@@ -31,6 +31,7 @@ outputs_teacher = []
 outputs_student = []
 
 def forward_hook_teacher(module, input, output):
+    global outputs_teacher
     outputs_teacher.append(output)
 
 def forward_hook_student(module, input, output):
@@ -46,8 +47,17 @@ def get_shapes(obj):
     else:
         return None
     
+def remove_all_backward_hooks(model):
+    # Iterate through all layers/modules of the model
+    for module in model.modules():
+        # If the module has any registered backward hooks, remove them
+        if hasattr(module, '_backward_hooks'):
+            for handle_id, hook in module._backward_hooks.items():
+                hook.remove()  # Remove the hook using its handle
+            module._backward_hooks.clear()  # Clear all hooks from the layer
+    
 class DummyYOLOStudent(nn.Module):
-    def __init__(self, num_classes=80):
+    def __init__(self, num_classes=6):
         super(DummyYOLOStudent, self).__init__()
         
         # Backbone (simple convolution layers instead of YOLO-like backbone)
@@ -74,7 +84,7 @@ class DummyYOLOStudent(nn.Module):
             nn.BatchNorm2d(128),
             nn.ReLU(),
             
-            nn.Conv2d(128, num_classes + 5, kernel_size=1),  # num_classes + 5 (for bbox coordinates + obj score)
+            nn.Conv2d(128, num_classes + 4, kernel_size=1),  # num_classes + 4 (for bbox coordinates + obj score)
         )
         
     def forward(self, x):
@@ -90,16 +100,13 @@ class DummyYOLOStudent(nn.Module):
         # BBox predictions: 4 coordinates per bounding box (center_x, center_y, width, height)
         # Objectness prediction: 1 score for each anchor
         # Class prediction: num_classes probabilities for each anchor
-        pred_bbox = x[:, :, :4]  # First 4 channels for bbox
-        pred_obj = x[:, :, 4:5]  # 5th channel for objectness score
-        pred_class = x[:, :, 5:]  # Remaining channels for class predictions
         
-        return pred_bbox, pred_obj, pred_class
+        return x
 
 
 # Argument Parsing
 parser = argparse.ArgumentParser("WAID")
-parser.add_argument('--img_dir', type=str, default='/kaggle/input/ooga-dataset/ooga/ooga-main/ooga/', help='location of images')
+parser.add_argument('--img_dir', type=str, default='/kaggle/input/ooga-dataset/ooga/ooga-main/ooga/train/', help='location of images')
 parser.add_argument('--label_dir', type=str, default='/kaggle/input/ooga-dataset/ooga/ooga-main/ooga/labels/train/', help='location labels')
 parser.add_argument('--val_img_dir', type=str, default='/kaggle/input/ooga-dataset/ooga/ooga-main/ooga/images/valid/', help='location of images')
 parser.add_argument('--val_label_dir', type=str, default='/kaggle/input/ooga-dataset/ooga/ooga-main/ooga/labels/valid/', help='location labels')
@@ -129,18 +136,23 @@ args = parser.parse_args()
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-# # for name, layer in teacher.named_modules():
-# #     print(name, layer)
+# for name, layer in teacher.named_modules():
+#     print(name, layer)
 # teacher = YOLO('yolov8n.yaml')
 # layer_teacher = getattr(teacher.model.model, '22')
 # layer_student = getattr(teacher.model.model, '22')
 # layer_teacher.register_forward_hook(forward_hook_teacher)
 # dummy = torch.rand(8,3,640,640)
-# output1, output2, output3 = teacher(dummy)
-# print(f'the output1 is {output1}')
-# print(f'the output2 is {output2}')
-# print(f'the output3 is {output3}')
-# print(f'the head output is {get_shapes(outputs_teacher)}')
+# output1= teacher(dummy)
+# # print(f'the output1 is {len(output1)}')
+# # print(f'the output2 is {output2}')
+# # print(f'the output3 is {output3}')
+# output = outputs_teacher[0]
+# output = output[0]
+# print(f'the head output is {get_shapes(output[0])}')
+input = torch.rand(2,3,640,640)
+model = DummyYOLOStudent()
+print(model(input).shape)
 
 # YOLO Loss Class
 class YOLOKDLoss(nn.Module):
@@ -209,10 +221,14 @@ def main():
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, float(args.epochs))
     print('before epochs')
     teacher = YOLO('yolov8m.yaml')
-    model_state_dict = torch.load("/kaggle/input/yolowaid/yolov8_waid.pt")
+    model_state_dict = torch.load("/kaggle/input/yolov8m-pt/yolov8m.pt")
     teacher.model.load_state_dict(model_state_dict, strict=False)
+
     teacher.to(device)
-    teacher.train(data='/kaggle/input/ooga-dataset/ooga/ooga-main/ooga/data.yaml', epochs=150, batch=8, optimizer= 'AdamW')
+    teacher.train(data='/kaggle/input/d/shauryasinghrathore/waiddataset/WAID-main/WAID-main/WAID/data.yaml', epochs=1, batch=8, optimizer= 'AdamW')
+    remove_all_backward_hooks(teacher.model.model)
+    layer_teacher = getattr(teacher.model.model, '22')
+    layer_teacher.register_forward_hook(forward_hook_teacher)
     np.random.seed(args.seed)
     torch.cuda.set_device(args.gpu)
     cudnn.benchmark = True
@@ -249,9 +265,6 @@ def train(train_queue, model, teacher, criterion, optimizer, args):
 
     model.train()
 
-    layer_teacher = getattr(teacher.model.model, '22')
-    layer_student = getattr(teacher.model.model, '22')
-    # layer_teacher.register_forward_hook(forward_hook_teacher)
     # layer_student.register_forward_hook(forward_hook_student)
 
     print(f'train queue length: {len(train_queue)}')
@@ -261,7 +274,12 @@ def train(train_queue, model, teacher, criterion, optimizer, args):
 
         with torch.no_grad():
             print('pre-predict')
-            teacher_preds = teacher(input)
+            global outputs_teacher
+            outputs_teacher.clear()
+            _ = teacher(input)
+            print(f'trying for hook {outputs_teacher}')
+            output = outputs_teacher[0]
+            output = output[0]
 
         print(f'student outputs: {model(input)}')
         student_preds = model(input)
@@ -273,9 +291,8 @@ def train(train_queue, model, teacher, criterion, optimizer, args):
         
         student_bbox, student_class, student_obj = process_yolov8_output(student_preds)
 
-
         print('basics')
-        loss = criterion(student_preds, teacher_preds, targets)
+        loss = criterion(student_preds, output, targets)
         print('lossed')
         loss.backward()
         nn.utils.clip_grad_norm_(model.parameters(), args.grad_clip)
@@ -290,6 +307,8 @@ def train(train_queue, model, teacher, criterion, optimizer, args):
         # Optionally log the progress every few steps
         if step % args.report_freq == 0:
             logging.info('train %03d %e %f %f', step, objs.avg, top1.avg, top5.avg)
+
+        outputs_teacher = []
 
     # Return average metrics for monitoring
     return top1.avg, objs.avg

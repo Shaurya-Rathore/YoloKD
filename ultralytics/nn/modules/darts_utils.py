@@ -226,7 +226,7 @@ class YOLOLoss(nn.Module):
 
         return total_loss
 
-def process_yolov8_output(output, num_classes=6, reg_max=4):
+def process_yolov8_output(output, num_classes=6, reg_max=12):
     """
     Process YOLOv8 output to extract bounding box predictions and class probabilities.
     
