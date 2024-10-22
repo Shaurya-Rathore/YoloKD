@@ -65,8 +65,7 @@ class YOLOObjectDetectionDataset(Dataset):
 def custom_collate_fn(batch):
     # Separate batch components
     images = []
-    bbox_predictions = []
-    class_predictions = []
+    targets = []
 
     for i, (image, box, label) in enumerate(batch):
         images.append(image)
@@ -81,28 +80,23 @@ def custom_collate_fn(batch):
             # Stack these into a tensor (bbox predictions)
             bbox = torch.stack((x_center, y_center, width, height), dim=1)
 
-            # Add the batch index as the first column for bbox predictions
-            bbox_with_index = torch.cat([torch.full((bbox.shape[0], 1), i).float(), bbox], dim=1)
-            bbox_predictions.append(bbox_with_index)
-
-            # For class predictions, add batch index and class label
-            class_with_index = torch.cat([torch.full((label.shape[0], 1), i).float(), label.unsqueeze(1).float()], dim=1)
-            class_predictions.append(class_with_index)
+             # Concatenate the class labels and box coordinates
+            target = torch.cat([label.unsqueeze(1).float(), bbox], dim=1)
+            # Add the batch index as the first column
+            target = torch.cat([torch.full((target.shape[0], 1), i).float(), target], dim=1)
+            targets.append(target)
 
     # Stack images along the batch dimension
     images = torch.stack(images, 0)
 
     # Concatenate all bbox and class prediction tensors into a single tensor
-    if bbox_predictions:
-        bbox_predictions = torch.cat(bbox_predictions, 0)
+    # Concatenate all target tensors into a single tensor
+    if targets:
+        targets = torch.cat(targets, 0)
     else:
-        bbox_predictions = torch.zeros((0, 5))  # Shape: [0, 5], batch_index + bbox coords
-
-    if class_predictions:
-        class_predictions = torch.cat(class_predictions, 0)
-    else:
-        class_predictions = torch.zeros((0, 2))  # Shape: [0, 2], batch_index + class label
-
+        # If no targets, create an empty tensor with shape [0, 6]
+        targets = torch.zeros((0, 6))
     # Return the images, bbox predictions, and class predictions
-    return images, bbox_predictions, class_predictions
+    
+    return images, targets
 

@@ -31,13 +31,13 @@ def test_network():
     
     for tensor in bbox_preds:
         print(tensor.shape)
-        dbox,cls,obj = process_yolov8_output(tensor)
+        dbox,cls = process_yolov8_output(tensor)
 
     print("bbox",bbox_preds) 
     print("dbox",dbox.size()) 
     print("cls",cls.size()) 
-    print("obj",obj.size())
-    input = (dbox,obj,cls)
+    #print("obj",obj.size())
+    input = (dbox,cls)
 
     # Calculate loss
     loss = model._loss(input, labels)
