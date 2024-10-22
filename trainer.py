@@ -47,6 +47,15 @@ def get_shapes(obj):
     else:
         return None
     
+def remove_all_backward_hooks(model):
+    # Iterate through all layers/modules of the model
+    for module in model.modules():
+        # If the module has any registered backward hooks, remove them
+        if hasattr(module, '_backward_hooks'):
+            for handle_id, hook in module._backward_hooks.items():
+                hook.remove()  # Remove the hook using its handle
+            module._backward_hooks.clear()  # Clear all hooks from the layer
+    
 class DummyYOLOStudent(nn.Module):
     def __init__(self, num_classes=6):
         super(DummyYOLOStudent, self).__init__()
@@ -217,6 +226,9 @@ def main():
 
     teacher.to(device)
     teacher.train(data='/kaggle/input/d/shauryasinghrathore/waiddataset/WAID-main/WAID-main/WAID/data.yaml', epochs=1, batch=8, optimizer= 'AdamW')
+    remove_all_backward_hooks(teacher.model.model)
+    layer_teacher = getattr(teacher.model.model, '22')
+    layer_teacher.register_forward_hook(forward_hook_teacher)
     np.random.seed(args.seed)
     torch.cuda.set_device(args.gpu)
     cudnn.benchmark = True
