@@ -183,7 +183,7 @@ def create_exp_dir(path, scripts_to_save=None):
 
 class YOLOLoss(nn.Module):
     def __init__(self,lambda_bbox=5.0, lambda_obj=1.0, lambda_noobj=0.5, lambda_class=1.0):
-        super(YOLOLoss, self)._init_()
+        super(YOLOLoss, self).__init__()
         # Weights for each component of the loss
         self.lambda_bbox = lambda_bbox
         self.lambda_obj = lambda_obj
