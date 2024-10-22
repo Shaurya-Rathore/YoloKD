@@ -19,7 +19,7 @@ batch_size = arguments.batch_size
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 # Initialize W&B
 wandb.login(key="833b800ff23eb3d26e6c85a8b9e1fc8bbafc9775") 
-wandb.init(project="yolov8")
+wandb.init(project="yolov8_exp")
 
 # Load the custom model configuration
 model = YOLO('yolov8-LDconv.yaml')
@@ -70,7 +70,7 @@ Result_Final_model = model.train(
     epochs=epochs,
     batch=batch_size,
     optimizer='auto',
-    project='yolov8',
+    project='yolov8_exp',
     save=True,
     device = device,
     amp=False
