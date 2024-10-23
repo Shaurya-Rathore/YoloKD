@@ -100,7 +100,7 @@ def main():
   model = YOLOv8StudentModel(WAID_CLASSES, args.init_channels, args.layers, steps=4, multiplier=4, stem_multiplier=3)
   model = model.cuda()
   criterion = v8DetectionLoss(model)
-  criterion = criterion.cuda()
+  #criterion = criterion.cuda()
 
   logging.info("param size = %fMB", darts_utils.count_parameters_in_MB(model))
 
