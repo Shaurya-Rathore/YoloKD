@@ -222,8 +222,8 @@ class v8DetectionLoss:
 
         # Targets
         # Using assertions to check tensor shapes
-        assert batch['batch_idx'].dim() == 1 or batch['batch_idx'].dim() == 2, f"Unexpected shape: {batch['batch_idx'].shape}"
-        assert batch['cls'].dim() == 1 or batch['cls'].dim() == 2, f"Unexpected shape: {batch['cls'].shape}"
+        assert batch['batch_idx'].dim() == 1 , f"Unexpected shape: {batch['batch_idx'].shape}"
+        assert batch['cls'].dim() == 1, f"Unexpected shape: {batch['cls'].shape}"
         assert batch['bboxes'].dim() == 2, f"Unexpected shape: {batch['bboxes'].shape}"
 
         targets = torch.cat((batch["batch_idx"].view(-1, 1), batch["cls"].view(-1, 1), batch["bboxes"]), 1)
