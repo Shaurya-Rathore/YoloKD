@@ -54,10 +54,10 @@ class YOLOObjectDetectionDataset(Dataset):
         labels = torch.tensor(labels)
 
         # Create target tensors
-        boxes = labels[:, 1:] if len(labels) > 0 else torch.zeros((0, 4))
-        labels = labels[:, 0].long() if len(labels) > 0 else torch.zeros(0, dtype=torch.int64)
+        #boxes = labels[:, 1:] if len(labels) > 0 else torch.zeros((0, 4))
+        #labels = labels[:, 0].long() if len(labels) > 0 else torch.zeros(0, dtype=torch.int64)
 
-        return image, boxes, labels
+        return image, labels
 
     def get_class_name(self, class_id):
         return self.classes[class_id]
