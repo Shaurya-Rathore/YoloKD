@@ -164,15 +164,14 @@ def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr):
     target = Variable(target, requires_grad=False).cuda()
 
     print(f"input shape: {input.shape}")
-    print(f"Target shape: {target}")
-    print("target", target)
+    print(f"Target: {target}")
 
     # get a random minibatch from the search queue with replacement
     input_search,target_search = next(iter(valid_queue))
     input_search = Variable(input_search, requires_grad=False).cuda()
     target_search = Variable(target_search, requires_grad=False).cuda()
-    gc.collect()
-    torch.cuda.empty_cache()
+    print(f"input shape: {input.shape}")
+    print(f"Target valid: {target_search}")
     architect.step(input, target, input_search,target_search, lr, optimizer, unrolled=args.unrolled)
 
     optimizer.zero_grad()
