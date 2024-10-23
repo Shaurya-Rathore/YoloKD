@@ -70,7 +70,7 @@ class DFLoss(nn.Module):
         super().__init__()
         self.reg_max = reg_max
 
-    def __call__(self, pred_dist, target):
+    def call(self, pred_dist, target):
         """
         Return sum of left and right DFL losses.
 
@@ -204,7 +204,7 @@ class v8DetectionLoss:
             # pred_dist = (pred_dist.view(b, a, c // 4, 4).softmax(2) * self.proj.type(pred_dist.dtype).view(1, 1, -1, 1)).sum(2)
         return dist2bbox(pred_dist, anchor_points, xywh=False)
 
-    def __call__(self, preds, batch):
+    def call(self, preds, batch):
         """Calculate the sum of the loss for box, cls and dfl multiplied by batch size."""
         loss = torch.zeros(3, device=self.device)  # box, cls, dfl
         feats = preds[1] if isinstance(preds, tuple) else preds
@@ -271,7 +271,7 @@ class v8SegmentationLoss(v8DetectionLoss):
         super().__init__(model)
         self.overlap = model.args.overlap_mask
 
-    def __call__(self, preds, batch):
+    def call(self, preds, batch):
         """Calculate and return the loss for the YOLO model."""
         loss = torch.zeros(4, device=self.device)  # box, cls, dfl
         feats, pred_masks, proto = preds if len(preds) == 3 else preds[1]
@@ -459,7 +459,7 @@ class v8PoseLoss(v8DetectionLoss):
         sigmas = torch.from_numpy(OKS_SIGMA).to(self.device) if is_pose else torch.ones(nkpt, device=self.device) / nkpt
         self.keypoint_loss = KeypointLoss(sigmas=sigmas)
 
-    def __call__(self, preds, batch):
+    def call(self, preds, batch):
         """Calculate the total loss and detach it."""
         loss = torch.zeros(5, device=self.device)  # box, cls, dfl, kpt_location, kpt_visibility
         feats, pred_kpts = preds if isinstance(preds[0], list) else preds[1]
@@ -605,7 +605,7 @@ class v8PoseLoss(v8DetectionLoss):
 class v8ClassificationLoss:
     """Criterion class for computing training losses."""
 
-    def __call__(self, preds, batch):
+    def call(self, preds, batch):
         """Compute the classification loss between predictions and true labels."""
         loss = F.cross_entropy(preds, batch["cls"], reduction="mean")
         loss_items = loss.detach()
@@ -639,7 +639,7 @@ class v8OBBLoss(v8DetectionLoss):
                     out[j, :n] = torch.cat([targets[matches, 1:2], bboxes], dim=-1)
         return out
 
-    def __call__(self, preds, batch):
+    def call(self, preds, batch):
         """Calculate and return the loss for the YOLO model."""
         loss = torch.zeros(3, device=self.device)  # box, cls, dfl
         feats, pred_angle = preds if isinstance(preds[0], list) else preds[1]
@@ -737,7 +737,7 @@ class E2EDetectLoss:
         self.one2many = v8DetectionLoss(model, tal_topk=10)
         self.one2one = v8DetectionLoss(model, tal_topk=1)
 
-    def __call__(self, preds, batch):
+    def call(self, preds, batch):
         """Calculate the sum of the loss for box, cls and dfl multiplied by batch size."""
         preds = preds[1] if isinstance(preds, tuple) else preds
         one2many = preds["one2many"]
