@@ -5,57 +5,54 @@ from torchvision.transforms import transforms
 from PIL import Image
 import numpy as np
 
+import albumentations as A
+from albumentations.pytorch import ToTensorV2
+
 class YOLOObjectDetectionDataset(Dataset):
-    def __init__(self, img_dir, label_dir, classes, img_size=600, transform=None):
+    def __init__(self, img_dir, label_dir, classes, img_size=600):
         self.img_dir = img_dir
         self.label_dir = label_dir
         self.img_size = img_size
         self.classes = classes
         self.class_to_idx = {cls: idx for idx, cls in enumerate(classes)}
-        self.transform = transform
         self.img_files = [f for f in os.listdir(img_dir) if f.endswith(('.png', '.jpg', '.jpeg'))]
-
-    def __len__(self):
-        return len(self.img_files)
+        
+        # Define transformations
+        self.transform = A.Compose([
+            A.Resize(img_size, img_size),
+            # Add other transformations if needed
+            ToTensorV2(),
+        ], bbox_params=A.BboxParams(format='yolo', label_fields=['class_labels']))
 
     def __getitem__(self, idx):
         img_path = os.path.join(self.img_dir, self.img_files[idx])
-        label_path = os.path.join(self.label_dir, self.img_files[idx].replace('.jpg', '.txt').replace('.png', '.txt').replace('.jpeg', '.txt'))
+        label_path = os.path.join(
+            self.label_dir,
+            self.img_files[idx].replace('.jpg', '.txt').replace('.png', '.txt').replace('.jpeg', '.txt')
+        )
 
         # Load image
-        image = Image.open(img_path).convert("RGB")
-        orig_width, orig_height = image.size
-        image = self.transform(image)
+        image = np.array(Image.open(img_path).convert("RGB"))
 
         # Load labels
-        labels = []
+        boxes = []
+        class_labels = []
         if os.path.exists(label_path):
             with open(label_path, 'r') as file:
                 for line in file:
                     class_id, x_center, y_center, width, height = map(float, line.strip().split())
-                    # Convert normalized coordinates to pixel coordinates
-                    x_center *= orig_width
-                    y_center *= orig_height
-                    width *= orig_width
-                    height *= orig_height
-                    # Convert to [x_min, y_min, x_max, y_max] format
-                    x_min = x_center - width / 2
-                    y_min = y_center - height / 2
-                    x_max = x_center + width / 2
-                    y_max = y_center + height / 2
-                    # Normalize to [0, 1] for the resized image
-                    x_min /= orig_width
-                    y_min /= orig_height
-                    x_max /= orig_width
-                    y_max /= orig_height
-                    labels.append([int(class_id), x_min, y_min, x_max, y_max])
+                    boxes.append([x_center, y_center, width, height])  # Normalized coordinates
+                    class_labels.append(int(class_id))
 
-        # Convert labels to tensor
-        labels = torch.tensor(labels)
+        # Apply transformations
+        transformed = self.transform(image=image, bboxes=boxes, class_labels=class_labels)
+        image = transformed['image']
+        boxes = transformed['bboxes']
+        class_labels = transformed['class_labels']
 
-        # Create target tensors
-        boxes = labels[:, 1:] if len(labels) > 0 else torch.zeros((0, 4))
-        labels = labels[:, 0].long() if len(labels) > 0 else torch.zeros(0, dtype=torch.int64)
+        # Convert to tensors
+        boxes = torch.tensor(boxes, dtype=torch.float32)
+        labels = torch.tensor(class_labels, dtype=torch.int64)
 
         return image, boxes, labels
 
