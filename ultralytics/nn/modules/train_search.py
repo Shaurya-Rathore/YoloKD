@@ -178,7 +178,7 @@ def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr):
     optimizer.zero_grad()
     logits = model(input)
     print("logits",logits.shape)
-    target = process_yolov8_output(logits)
+    #target = process_yolov8_output(logits)
     loss = criterion(logits, target)
 
     loss.backward()
