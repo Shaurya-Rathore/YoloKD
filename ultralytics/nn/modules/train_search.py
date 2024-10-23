@@ -13,7 +13,7 @@ import torch.nn.functional as F
 import torch.backends.cudnn as cudnn
 from torch.nn.utils.rnn import pad_sequence
 import gc
-
+from ultralytics.utils.loss import v8DetectionLoss
 from darts_utils import YOLOLoss,process_yolov8_output
 from torch.autograd import Variable
 from model_search import YOLOv8StudentModel
@@ -97,10 +97,11 @@ def main():
   logging.info('gpu device = %d' % args.gpu)
   logging.info("args = %s", args)
 
-  criterion = nn.CrossEntropyLoss()
-  criterion = criterion.cuda()
   model = YOLOv8StudentModel(WAID_CLASSES, args.init_channels, args.layers, steps=4, multiplier=4, stem_multiplier=3)
   model = model.cuda()
+  criterion = v8DetectionLoss(model)
+  criterion = criterion.cuda()
+
   logging.info("param size = %fMB", darts_utils.count_parameters_in_MB(model))
 
   optimizer = torch.optim.SGD(
@@ -155,32 +156,30 @@ def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr):
   top1 = darts_utils.AvgrageMeter()
   top5 = darts_utils.AvgrageMeter()
 
-  for step, (input,bbox_predictions, class_predictions) in enumerate(train_queue):
+  for step, (input,target) in enumerate(train_queue):
     model.train()
     n = input.size(0)
     
     input = Variable(input, requires_grad=False).cuda()
-    bbox_predictions = Variable(bbox_predictions, requires_grad=False).cuda()
-    class_predictions = Variable(class_predictions, requires_grad=False).cuda()
+    target = Variable(target, requires_grad=False).cuda()
 
     print(f"input shape: {input.shape}")
-    print(f"Target shape: { bbox_predictions.shape, class_predictions.shape}")
-    print("target", bbox_predictions, class_predictions)
+    print(f"Target shape: {target}")
+    print("target", target)
 
     # get a random minibatch from the search queue with replacement
     input_search,bbox_predictions_search,class_predictions_search = next(iter(valid_queue))
     input_search = Variable(input_search, requires_grad=False).cuda()
-    bbox_predictions_search = Variable(bbox_predictions_search, requires_grad=False).cuda()
-    class_predictions_search  = Variable(class_predictions_search ,requires_grad=False).cuda()
+    target_search = Variable(target_search, requires_grad=False).cuda()
     gc.collect()
     torch.cuda.empty_cache()
-    architect.step(input, bbox_predictions, class_predictions, input_search,bbox_predictions_search, class_predictions_search, lr, optimizer, unrolled=args.unrolled)
+    architect.step(input, target, input_search,target_search, lr, optimizer, unrolled=args.unrolled)
 
     optimizer.zero_grad()
     logits = model(input)
     print("logits",logits.shape)
-    dbox,cls,objectness = process_yolov8_output(logits)
-    loss = criterion((dbox,cls,objectness), (bbox_predictions, class_predictions))
+    target = process_yolov8_output(logits)
+    loss = criterion(logits, target)
 
     loss.backward()
     nn.utils.clip_grad_norm(model.parameters(), args.grad_clip)
