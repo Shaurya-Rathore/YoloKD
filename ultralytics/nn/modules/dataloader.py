@@ -54,10 +54,10 @@ class YOLOObjectDetectionDataset(Dataset):
         labels = torch.tensor(labels)
 
         # Create target tensors
-        #boxes = labels[:, 1:] if len(labels) > 0 else torch.zeros((0, 4))
-        #labels = labels[:, 0].long() if len(labels) > 0 else torch.zeros(0, dtype=torch.int64)
+        boxes = labels[:, 1:] if len(labels) > 0 else torch.zeros((0, 4))
+        labels = labels[:, 0].long() if len(labels) > 0 else torch.zeros(0, dtype=torch.int64)
 
-        return image, labels
+        return image, boxes, labels
 
     def get_class_name(self, class_id):
         return self.classes[class_id]
@@ -67,7 +67,7 @@ def custom_collate_fn(batch):
     images = []
     targets = []
 
-    for i, (image, box, label) in enumerate(batch):
+    for i, (image, box,label) in enumerate(batch):
         images.append(image)
 
         if box.numel() > 0:  # Check if there are any boxes
