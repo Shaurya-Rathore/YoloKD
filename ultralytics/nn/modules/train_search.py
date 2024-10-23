@@ -97,7 +97,7 @@ def main():
   logging.info('gpu device = %d' % args.gpu)
   logging.info("args = %s", args)
 
-  criterion = YOLOLoss()
+  criterion = nn.CrossEntropyLoss()
   criterion = criterion.cuda()
   model = YOLOv8StudentModel(WAID_CLASSES, args.init_channels, args.layers, steps=4, multiplier=4, stem_multiplier=3)
   model = model.cuda()

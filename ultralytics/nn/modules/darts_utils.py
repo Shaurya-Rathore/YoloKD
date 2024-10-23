@@ -255,10 +255,9 @@ def process_yolov8_output(output, num_classes=6, reg_max=12):
     #dbox = box.sum(1)
     
     # Apply sigmoid to class probabilities
-    cls = cls.sigmoid()
-    objectness = cls.max(dim=-1).values
+    #cls = cls.sigmoid()
+    #objectness = cls.max(dim=-1).values
     return dbox, cls#, objectness
-
 
 Test_Mean = [0.4766, 0.4769, 0.4767]
 Test_Std = [0.1985, 0.1984, 0.1984]

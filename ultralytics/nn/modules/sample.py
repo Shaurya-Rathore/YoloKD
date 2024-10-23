@@ -3,8 +3,6 @@ import torch.nn as nn
 from model_search import YOLOv8StudentModel 
 from darts_utils import process_yolov8_output
 
-
-
 def test_network():
     # Define hyperparameters
     C = 16  # Initial number of channels
@@ -29,18 +27,21 @@ def test_network():
          # Unpack the tuple returned by forward()
     #print(f"Output shape: {logits.shape}"
     
-    for tensor in bbox_preds:
-        print(tensor.shape)
-        dbox,cls = process_yolov8_output(tensor)
-
-    print("bbox",bbox_preds) 
+    #for tensor in bbox_preds:
+        #print(tensor.shape)
+        #dbox,cls = process_yolov8_output(tensor)
+    shape = bbox_preds[0].shape 
+    bbox_preds = torch.cat([xi.view(shape[0], num_classes + 16, -1) for xi in bbox_preds], 2)
+    dbox = bbox_preds[:, : 16]
+    cls = bbox_preds[:, 16 :]
+    #print("bbox",bbox_preds) 
     print("dbox",dbox.size()) 
     print("cls",cls.size()) 
     #print("obj",obj.size())
     input = (dbox,cls)
 
     # Calculate loss
-    loss = model._loss(input, labels)
+    loss = model._loss(cls, labels)
     print(f"Loss: {loss.item()}")
 
     # Print the genotype

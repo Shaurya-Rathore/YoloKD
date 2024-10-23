@@ -3,10 +3,12 @@ import torch.nn as nn
 import torch.nn.functional as F
 import unittest
 import copy
+from types import SimpleNamespace
 import time
 # from ultralytics.utils.tal import dist2bbox, make_anchors
 # from ultralytics.nn.modules.conv import Conv
 # from ultralytics.nn.modules.block import DFL
+from ultralytics.utils.loss import v8DetectionLoss
 from operations import *
 from torch.cuda.amp import autocast, GradScaler
 
@@ -378,16 +380,16 @@ class NeckFPN(nn.Module):
         self.conv_c4 = nn.Conv2d(in_channels[2], 256, kernel_size=1)  # C4 (75x75), reduce channels to 256
         self.conv_c3 = nn.Conv2d(in_channels[1], 256, kernel_size=1)  # C3 (150x150), reduce channels to 256
         self.conv_c2 = nn.Conv2d(in_channels[0], 256, kernel_size=1)  # C2 (300x300), reduce channels to 256
-        self.conv_c4 = self.conv_c4.to(torch.float16)
-        self.conv_c3 = self.conv_c3.to(torch.float16)
-        self.conv_c2 = self.conv_c2.to(torch.float16)
+        #self.conv_c4 = self.conv_c4.to(torch.float16)
+        #self.conv_c3 = self.conv_c3.to(torch.float16)
+        #self.conv_c2 = self.conv_c2.to(torch.float16)
         # Final 3x3 convolutions after feature map fusion
         self.final_c2 = nn.Conv2d(256, 256, kernel_size=3, padding=1)  # Final C2 (300x300)
         self.final_c3 = nn.Conv2d(256, 256, kernel_size=3, padding=1)  # Final C3 (150x150)
         self.final_c4 = nn.Conv2d(256, 256, kernel_size=3, padding=1)  # Final C4 (75x75)
-        self.final_c2 = self.final_c2.to(torch.float16)
-        self.final_c3 = self.final_c3.to(torch.float16)
-        self.final_c4 = self.final_c4.to(torch.float16)
+        #self.final_c2 = self.final_c2.to(torch.float16)
+        #self.final_c3 = self.final_c3.to(torch.float16)
+        #self.final_c4 = self.final_c4.to(torch.float16)
 
     def forward(self, c2, c3, c4):
         # c2: 300x300 from the 6th backbone cell (shallower, high-resolution, fewer channels)
@@ -396,27 +398,29 @@ class NeckFPN(nn.Module):
 
         # Step 1: Adjust channels for C4 (75x75)
         with autocast():
-          c4 = c4.to(torch.float16)
+          #c4 = c4.to(torch.float16)
+          #c3 = c3.to(torch.float16)
+          #c2 = c2.to(torch.float16)
           c4_out = self.conv_c4(c4)  # Adjust channels for C4: (75x75 -> 256 channels)
 
           # Step 2: Upsample C4 (75x75 -> 150x150) and fuse with C3
           c4_upsampled = F.interpolate(c4_out, scale_factor=2, mode='nearest')  # 75x75 -> 150x150
-          c4_upsampled = c4_upsampled.to(torch.float16)
+          #c4_upsampled = c4_upsampled.to(torch.float16)
           c3_fused = self.conv_c3(c3) + c4_upsampled  # Fuse C3 (150x150) and upsampled C4 (150x150)
-          c3_fused = c3_fused.to(torch.float16)
+          #c3_fused = c3_fused.to(torch.float16)
           # Step 3: Upsample fused C3 (150x150 -> 300x300) and fuse with C2
           c3_upsampled = F.interpolate(c3_fused, scale_factor=2, mode='nearest')  # 150x150 -> 300x300
           c3_upsampled = c3_upsampled.to(torch.float16)
           c2_fused = self.conv_c2(c2) + c3_upsampled  # Fuse C2 (300x300) and upsampled C3 (300x300)
-          c2_fused = c2_fused.to(torch.float16)
+          #c2_fused = c2_fused.to(torch.float16)
 
           # Step 4: Apply final 3x3 convolutions to each fused feature map
           c2_final = self.final_c2(c2_fused)  # Final output for C2 (300x300)
           c3_final = self.final_c3(c3_fused)  # Final output for C3 (150x150)
           c4_final = self.final_c4(c4_out)    # Final output for C4 (75x75)
-          c2_final = c2_final.to(torch.float16)
-          c3_final = c3_final.to(torch.float16)
-          c4_final = c4_final.to(torch.float16)
+          #c2_final = c2_final.to(torch.float16)
+          #c3_final = c3_final.to(torch.float16)
+          #c4_final = c4_final.to(torch.float16)
 
         return c2_final, c3_final, c4_final  # Return feature maps at 300x300, 150x150, 75x75
 
@@ -573,12 +577,14 @@ class YOLOv8StudentModel(nn.Module):
         stem_multiplier (int): Multiplier for channels in the stem layer.
     """
     super(YOLOv8StudentModel, self).__init__()
+    self.args = SimpleNamespace(box=7.5, cls=0.5, dfl=1.5)  
+    self.model = nn.ModuleList()
     
     # DARTS-based backbone with 14 layers (3 reduction cells)
     self.backbone = DARTSBackbone(C=C, layers=layers, steps=steps, multiplier=multiplier, stem_multiplier=stem_multiplier)
     self.arch_parameters = self.backbone.arch_parameters()
     self._multiplier = multiplier
-    self._criterion = YOLOLoss()
+    
     # Example: The channels from the backbone after feature extraction
     # Assuming C3 and C4 feature maps from backbone
     backbone_out_channels = [C*multiplier*2,C * multiplier * 4, C * multiplier * 8]  # Example for C3 and C4
@@ -588,6 +594,8 @@ class YOLOv8StudentModel(nn.Module):
     self.neck = NeckFPN(in_channels=backbone_out_channels) 
     neck_out_channels = [256, 256, 256]  # Adjust based on your NeckFPN implementation
     self.detect = Detect(nc=num_classes, ch=neck_out_channels)
+    self.model.append(self.detect)
+    self._criterion = v8DetectionLoss(self,tal_topk=10)
     self._initialize_alphas()
 
   def _initialize_alphas(self):
@@ -601,9 +609,9 @@ class YOLOv8StudentModel(nn.Module):
       self.alphas_reduce,
     ]
 
-  def _loss(self, input, bbox_predictions_valid, class_predictions_valid):
+  def _loss(self, input, target):
     logits = self(input)
-    return self._criterion(logits, (bbox_predictions_valid, class_predictions_valid)) 
+    return self._criterion(logits, target) 
   
   def genotype(self):
 
