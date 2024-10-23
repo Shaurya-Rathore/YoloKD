@@ -92,6 +92,7 @@ def test_student_model():
         # Forward pass
         optimizer.zero_grad()
         predictions = model(batch['images'])
+        print(batch.shape)
         
         # Calculate loss
         try:

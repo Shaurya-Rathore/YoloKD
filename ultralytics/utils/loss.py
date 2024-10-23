@@ -221,6 +221,11 @@ class v8DetectionLoss:
         anchor_points, stride_tensor = make_anchors(feats, self.stride, 0.5)
 
         # Targets
+        # Using assertions to check tensor shapes
+        assert batch['batch_idx'].dim() == 1 or batch['batch_idx'].dim() == 2, f"Unexpected shape: {batch['batch_idx'].shape}"
+        assert batch['cls'].dim() == 1 or batch['cls'].dim() == 2, f"Unexpected shape: {batch['cls'].shape}"
+        assert batch['bboxes'].dim() == 2, f"Unexpected shape: {batch['bboxes'].shape}"
+
         targets = torch.cat((batch["batch_idx"].view(-1, 1), batch["cls"].view(-1, 1), batch["bboxes"]), 1)
         targets = self.preprocess(targets.to(self.device), batch_size, scale_tensor=imgsz[[1, 0, 1, 0]])
         gt_labels, gt_bboxes = targets.split((1, 4), 2)  # cls, xyxy
