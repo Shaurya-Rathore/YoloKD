@@ -152,47 +152,50 @@ def main():
 
 
 def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr):
-  objs = darts_utils.AvgrageMeter()
-  top1 = darts_utils.AvgrageMeter()
-  top5 = darts_utils.AvgrageMeter()
+    objs = darts_utils.AvgrageMeter()
+    top1 = darts_utils.AvgrageMeter()
+    top5 = darts_utils.AvgrageMeter()
 
-  for step, (input,target) in enumerate(train_queue):
-    model.train()
-    n = input.size(0)
-    
-    input = Variable(input, requires_grad=False).cuda()
-    target = Variable(target, requires_grad=False).cuda()
+    for step, (input, target) in enumerate(train_queue):
+        model.train()
+        n = input.size(0)
+        
+        input = Variable(input, requires_grad=False).cuda()
+        target = {
+            "batch_idx": Variable(target["batch_idx"], requires_grad=False).cuda(),
+            "cls": Variable(target["cls"], requires_grad=False).cuda(),
+            "bboxes": Variable(target["bboxes"], requires_grad=False).cuda(),
+        }
 
-    print(f"input shape: {input.shape}")
-    print(f"Target: {target}")
+        # Get a random minibatch from the validation queue
+        input_search, target_search = next(iter(valid_queue))
+        input_search = Variable(input_search, requires_grad=False).cuda()
+        target_search = {
+            "batch_idx": Variable(target_search["batch_idx"], requires_grad=False).cuda(),
+            "cls": Variable(target_search["cls"], requires_grad=False).cuda(),
+            "bboxes": Variable(target_search["bboxes"], requires_grad=False).cuda(),
+        }
 
-    # get a random minibatch from the search queue with replacement
-    input_search,target_search = next(iter(valid_queue))
-    input_search = Variable(input_search, requires_grad=False).cuda()
-    target_search = Variable(target_search, requires_grad=False).cuda()
-    print(f"input shape: {input.shape}")
-    print(f"Target valid: {target_search}")
-    architect.step(input, target, input_search,target_search, lr, optimizer, unrolled=args.unrolled)
+        architect.step(input, target, input_search, target_search, lr, optimizer, unrolled=args.unrolled)
 
-    optimizer.zero_grad()
-    logits = model(input)
-    print("logits",logits.shape)
-    #target = process_yolov8_output(logits)
-    loss = criterion(logits, target)
+        optimizer.zero_grad()
+        logits = model(input)
+        loss = criterion(logits, target)
+        loss.backward()
 
-    loss.backward()
-    nn.utils.clip_grad_norm(model.parameters(), args.grad_clip)
-    optimizer.step()
+        nn.utils.clip_grad_norm(model.parameters(), args.grad_clip)
+        optimizer.step()
 
-    prec1, prec5 = darts_utils.accuracy(logits, target, topk=(1, 5))
-    objs.update(loss.data[0], n)
-    top1.update(prec1.data[0], n)
-    top5.update(prec5.data[0], n)
+        prec1, prec5 = darts_utils.accuracy(logits, target, topk=(1, 5))
+        objs.update(loss.data.item(), n)
+        top1.update(prec1.item(), n)
+        top5.update(prec5.item(), n)
 
-    if step % args.report_freq == 0:
-      logging.info('train %03d %e %f %f', step, objs.avg, top1.avg, top5.avg)
+        if step % args.report_freq == 0:
+            logging.info('train %03d %e %f %f', step, objs.avg, top1.avg, top5.avg)
 
-  return top1.avg, objs.avg
+    return top1.avg, objs.avg
+
 
 
 def infer(valid_queue, model, criterion):
