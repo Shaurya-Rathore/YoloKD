@@ -127,14 +127,14 @@ def main():
         
         input = Variable(input, requires_grad=False).cuda()
         target = Variable(target, requires_grad=False).cuda()
-        print("input",input) 
-        print("target",target)
+        print("input",input.shape) 
+        print("target",target.shape)
         input_search, target_search = next(iter(valid_queue))
         input_search = Variable(input_search, requires_grad=False).cuda()
         target_search = Variable(target_search, requires_grad=False)
-        target_search = torch.argmax(target_search, dim=1).long().cuda()
-        print("input s",input_search) 
-        print("target s",target_search)
+        #target_search = torch.argmax(target_search, dim=1).long().cuda()
+        print("input s",input_search.shape) 
+        print("target s",target_search.shape)
 
   scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
         optimizer, float(args.epochs), eta_min=args.learning_rate_min)
