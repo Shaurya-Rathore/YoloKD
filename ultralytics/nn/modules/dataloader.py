@@ -82,5 +82,4 @@ def custom_collate_fn(batch):
     return images, {
         "batch_idx": batch_indices_padded,
         "cls": cls_labels_padded,
-        "bboxes": bboxes_padded
-    }
+        "bboxes": bboxes_padded}
