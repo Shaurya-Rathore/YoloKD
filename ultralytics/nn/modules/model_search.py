@@ -668,9 +668,9 @@ class YOLOv8StudentModel(nn.Module):
     x= self.detect(list(fused_features))
     #pred_bbox = x[:, :, :4]  
     #pred_obj = x[:, :, 4:5] 
-    #pred_class = x[:, :, 5:]
+    pred_class = x[:, :, 5:]
 
-    return x#pred_bbox, pred_obj,pred_class
+    return pred_class.long().cuda()#pred_bbox, pred_obj,pred_class
   
 def process_yolov8_output(output, num_classes=6, reg_max=4):
     """
