@@ -175,7 +175,7 @@ def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr):
             #"cls": Variable(target_search["cls"], requires_grad=False).cuda(),
             #"bboxes": Variable(target_search["bboxes"], requires_grad=False).cuda(),
         #}
-
+        print("ft",target_search)
         architect.step(input, target, input_search, target_search, lr, optimizer, unrolled=args.unrolled)
 
         optimizer.zero_grad()
