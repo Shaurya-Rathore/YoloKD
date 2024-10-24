@@ -49,11 +49,11 @@ class YOLOObjectDetectionDataset(Dataset):
         batch_idx = torch.tensor([idx] * labels.size(0), dtype=torch.int64)
 
         # Create target dictionary as expected by the loss function
-        target = {
-            "batch_idx": batch_idx,
-            "cls": labels[:, 0],      # Class IDs
-            "bboxes": labels[:, 1:],  # Bounding boxes [x_center, y_center, width, height]
-        }
+        target =labels[:, 0] #{
+            #"batch_idx": batch_idx,
+            #"cls": labels[:, 0],      # Class IDs
+            #"bboxes": labels[:, 1:],  # Bounding boxes [x_center, y_center, width, height]
+        #}
 
         return image, target
 
@@ -68,18 +68,18 @@ def custom_collate_fn(batch):
     cls_labels = []
     bboxes = []
 
-    for target in targets:
-        batch_indices.append(target["batch_idx"])
-        cls_labels.append(target["cls"])
-        bboxes.append(target["bboxes"])
+    #for target in targets:
+        #batch_indices.append(target["batch_idx"])
+        #cls_labels.append(target["cls"])
+        #bboxes.append(target["bboxes"])
 
     # Pad batch indices, class labels, and bounding boxes to the same size
-    batch_indices_padded = pad_sequence(batch_indices, batch_first=True)
-    cls_labels_padded = pad_sequence(cls_labels, batch_first=True)
-    bboxes_padded = pad_sequence(bboxes, batch_first=True)
+    #batch_indices_padded = pad_sequence(batch_indices, batch_first=True)
+    cls_labels_padded = pad_sequence(targets, batch_first=True)
+    #bboxes_padded = pad_sequence(bboxes, batch_first=True)
 
     # Return images and the padded targets
-    return images, {
-        "batch_idx": batch_indices_padded,
-        "cls": cls_labels_padded,
-        "bboxes": bboxes_padded}
+    return images,cls_labels_padded# {
+        #"batch_idx": batch_indices_padded,
+        #"cls": cls_labels_padded,
+        #"bboxes": bboxes_padded}

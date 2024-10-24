@@ -595,7 +595,8 @@ class YOLOv8StudentModel(nn.Module):
     neck_out_channels = [256, 256, 256]  # Adjust based on your NeckFPN implementation
     self.detect = Detect(nc=num_classes, ch=neck_out_channels)
     self.model.append(self.detect)
-    self._criterion = v8DetectionLoss(self,tal_topk=10)
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    self._criterion = nn.CrossEntropyLoss().to(device) #v8DetectionLoss(self,tal_topk=10)
     self._initialize_alphas()
 
   def _initialize_alphas(self):

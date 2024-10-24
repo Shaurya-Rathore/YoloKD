@@ -96,10 +96,10 @@ def main():
   torch.cuda.manual_seed(args.seed)
   logging.info('gpu device = %d' % args.gpu)
   logging.info("args = %s", args)
-
+  device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
   model = YOLOv8StudentModel(WAID_CLASSES, args.init_channels, args.layers, steps=4, multiplier=4, stem_multiplier=3)
   model = model.cuda()
-  criterion = v8DetectionLoss(model)
+  criterion = nn.CrossEntropyLoss().to(device)#v8DetectionLoss(model)
   #criterion = criterion.cuda()
 
   logging.info("param size = %fMB", darts_utils.count_parameters_in_MB(model))
@@ -161,20 +161,20 @@ def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr):
         n = input.size(0)
         
         input = Variable(input, requires_grad=False).cuda()
-        target = {
-            "batch_idx": Variable(target["batch_idx"], requires_grad=False).cuda(),
-            "cls": Variable(target["cls"], requires_grad=False).cuda(),
-            "bboxes": Variable(target["bboxes"], requires_grad=False).cuda(),
-        }
+        target = Variable(target, requires_grad=False).cuda()#{
+            #"batch_idx": Variable(target["batch_idx"], requires_grad=False).cuda(),
+            #"cls": Variable(target["cls"], requires_grad=False).cuda(),
+            #"bboxes": Variable(target["bboxes"], requires_grad=False).cuda(),
+       # }
 
         # Get a random minibatch from the validation queue
         input_search, target_search = next(iter(valid_queue))
         input_search = Variable(input_search, requires_grad=False).cuda()
-        target_search = {
-            "batch_idx": Variable(target_search["batch_idx"], requires_grad=False).cuda(),
-            "cls": Variable(target_search["cls"], requires_grad=False).cuda(),
-            "bboxes": Variable(target_search["bboxes"], requires_grad=False).cuda(),
-        }
+        target_search = Variable(target_search, requires_grad=False).cuda()#{
+            #"batch_idx": Variable(target_search["batch_idx"], requires_grad=False).cuda(),
+            #"cls": Variable(target_search["cls"], requires_grad=False).cuda(),
+            #"bboxes": Variable(target_search["bboxes"], requires_grad=False).cuda(),
+        #}
 
         architect.step(input, target, input_search, target_search, lr, optimizer, unrolled=args.unrolled)
 
