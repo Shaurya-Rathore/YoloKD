@@ -123,6 +123,12 @@ def main():
   valid_queue = torch.utils.data.DataLoader(
       valid_data, batch_size=args.batch_size,
       pin_memory=True, num_workers=2,collate_fn=custom_collate_fn)
+  for step, (input, target) in enumerate(train_queue):
+     input_search, target_search = next(iter(valid_queue))
+     input_search = Variable(input_search, requires_grad=False).cuda()
+     target_search = Variable(target_search, requires_grad=False).cuda()
+     print("moshpit:",target_search)
+     
 
   scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
         optimizer, float(args.epochs), eta_min=args.learning_rate_min)
