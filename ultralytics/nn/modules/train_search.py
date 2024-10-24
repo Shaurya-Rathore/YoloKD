@@ -122,7 +122,19 @@ def main():
   valid_data = YOLOObjectDetectionDataset(img_dir = args.val_img_dir,label_dir=args.val_label_dir,classes = classes,transform=val_transform)
   valid_queue = torch.utils.data.DataLoader(
       valid_data, batch_size=args.batch_size,
-      pin_memory=True, num_workers=2,collate_fn=custom_collate_fn)   
+      pin_memory=True, num_workers=2,collate_fn=custom_collate_fn) 
+  for step, (input, target) in enumerate(train_queue):
+        
+        input = Variable(input, requires_grad=False).cuda()
+        target = Variable(target, requires_grad=False).cuda()
+        print("input",input) 
+        print("target",target)
+        input_search, target_search = next(iter(valid_queue))
+        input_search = Variable(input_search, requires_grad=False).cuda()
+        target_search = Variable(target_search, requires_grad=False)
+        target_search = torch.argmax(target_search, dim=1).long().cuda()
+        print("input s",input_search) 
+        print("target s",target_search)
 
   scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
         optimizer, float(args.epochs), eta_min=args.learning_rate_min)
