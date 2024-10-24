@@ -30,6 +30,7 @@ class Architect(object):
     return unrolled_model
 
   def step(self, input_train,target_train, input_valid, target_valid, eta, network_optimizer, unrolled):
+    print(target_valid)
     self.optimizer.zero_grad()
     if unrolled:
         self._backward_step_unrolled(input_train,target_train, input_valid, target_valid, eta, network_optimizer)
