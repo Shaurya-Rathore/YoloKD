@@ -8,7 +8,7 @@ import time
 # from ultralytics.utils.tal import dist2bbox, make_anchors
 # from ultralytics.nn.modules.conv import Conv
 # from ultralytics.nn.modules.block import DFL
-from YoloKD.ultralytics.utils.loss import v8DetectionLoss
+from ultralytics.utils.loss import v8DetectionLoss
 from operations import *
 from torch.cuda.amp import autocast, GradScaler
 
