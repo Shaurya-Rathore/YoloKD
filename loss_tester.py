@@ -1,4 +1,3 @@
-import torch
 import torch.nn as nn
 from types import SimpleNamespace
 import math
@@ -7,41 +6,116 @@ import torch.nn as nn
 from model_search import YOLOv8StudentModel 
 from ultralytics.utils.loss import v8DetectionLoss
 
-def create_random_training_batch(batch_size=2, img_size=32, num_classes=6, num_objects=3, device='cuda'):
+def create_random_training_batch(batch_size=2, max_det=300, num_classes=6, min_objects=2, max_objects=8, device='cpu'):
     """
-    Creates a random batch of training data in the format expected by YOLOv8.
-    """
-    # Random images
-    images = torch.randn(batch_size, 3, img_size, img_size, device=device)
+    Creates a random batch of training data matching YOLOv8's post-NMS output format.
     
-    # Random targets
-    targets = []
+    Args:
+        batch_size (int): Number of images in batch
+        max_det (int): Maximum number of detections per image
+        num_classes (int): Number of object classes
+        min_objects (int): Minimum number of objects per image
+        max_objects (int): Maximum number of objects per image
+        device (str): Device to create tensors on
+        
+    Returns:
+        tuple: (predictions, targets)
+            - predictions: tensor of shape (batch_size, max_det, 6) [x, y, w, h, conf, cls]
+            - targets: tensor of shape (N, 6) [batch_idx, cls, x, y, w, h] where N is total number of objects
+    """
+    # List to collect all targets
+    all_targets = []
+    
+    # Create predictions tensor matching post-NMS format
+    # Shape: (batch_size, max_det, 6) where 6 is [x, y, w, h, conf, cls]
+    predictions = torch.zeros((batch_size, max_det, 6), device=device)
+    
     for batch_idx in range(batch_size):
-        for _ in range(num_objects):
-            # Random box: [batch_idx, class, x, y, w, h]
-            x = torch.rand(1, device=device)
-            y = torch.rand(1, device=device)
-            w = torch.rand(1, device=device) * 0.3  # Limit size to 30% of image
-            h = torch.rand(1, device=device) * 0.3
-            cls = torch.randint(0, num_classes, (1,), device=device).float()
+        # Random number of objects for this image
+        num_objects = torch.randint(min_objects, max_objects + 1, (1,)).item()
+        
+        # Ensure we don't exceed max_det
+        num_objects = min(num_objects, max_det)
+        
+        for obj_idx in range(num_objects):
+            # Random normalized box coordinates
+            x = torch.rand(1, device=device).item()
+            y = torch.rand(1, device=device).item()
+            w = torch.rand(1, device=device).item() * 0.3  # Limit size to 30% of image
+            h = torch.rand(1, device=device).item() * 0.3
             
-            box = torch.tensor([batch_idx, cls, x, y, w, h], device=device)
-            targets.append(box)
+            # Random class and high confidence for positive samples
+            cls_idx = torch.randint(0, num_classes, (1,), device=device).item()
+            conf = torch.rand(1, device=device).item() * 0.5 + 0.5  # Random confidence between 0.5 and 1.0
+            
+            # Add ground truth target
+            target = torch.tensor([batch_idx, cls_idx, x, y, w, h], device=device)
+            all_targets.append(target)
+            
+            # Add to predictions with small random offset to simulate predicted boxes
+            pred_x = min(max(x + torch.randn(1, device=device).item() * 0.1, 0), 1)
+            pred_y = min(max(y + torch.randn(1, device=device).item() * 0.1, 0), 1)
+            pred_w = min(max(w + torch.randn(1, device=device).item() * 0.1, 0.1), 1)
+            pred_h = min(max(h + torch.randn(1, device=device).item() * 0.1, 0.1), 1)
+            
+            predictions[batch_idx, obj_idx] = torch.tensor(
+                [pred_x, pred_y, pred_w, pred_h, conf, cls_idx],
+                device=device
+            )
+        
+        # Fill remaining detections with low confidence background predictions
+        if num_objects < max_det:
+            for i in range(num_objects, max_det):
+                # Random coordinates
+                x = torch.rand(1, device=device).item()
+                y = torch.rand(1, device=device).item()
+                w = torch.rand(1, device=device).item() * 0.2
+                h = torch.rand(1, device=device).item() * 0.2
+                
+                # Low confidence and random class
+                conf = torch.rand(1, device=device).item() * 0.3  # Low confidence (0-0.3)
+                cls_idx = torch.randint(0, num_classes, (1,), device=device).item()
+                
+                predictions[batch_idx, i] = torch.tensor(
+                    [x, y, w, h, conf, cls_idx],
+                    device=device
+                )
     
-    if targets:
-        targets = torch.stack(targets)
-    else:
-        targets = torch.zeros((0, 6), device=device)  # Empty targets tensor
+    # Stack all targets
+    targets = torch.stack(all_targets) if all_targets else torch.zeros((0, 6), device=device)
     
-    # Create batch dictionary
-    batch = {
-        'images': images,
-        'batch_idx': targets[:, 0],
-        'cls': targets[:, 1],
-        'bboxes': targets[:, 2:],  # x, y, w, h
-    }
+    return predictions, targets
+
+# Example usage and testing
+if __name__ == "__main__":
+    # Set random seed for reproducibility
+    torch.manual_seed(42)
     
-    return batch
+    # Create random batch
+    predictions, targets = create_random_training_batch(
+        batch_size=2,
+        max_det=100,
+        num_classes=6,
+        min_objects=2,
+        max_objects=8,
+        device='cuda' if torch.cuda.is_available() else 'cpu'
+    )
+    
+    # Print shapes and sample values
+    print(f"Predictions shape: {predictions.shape}")  # Should be (batch_size, max_det, 6)
+    print(f"Targets shape: {targets.shape}")  # Should be (N, 6) where N is total number of objects
+    
+    # Print sample prediction
+    print("\nSample prediction (first box):")
+    print("x, y, w, h:", predictions[0, 0, :4].tolist())
+    print("confidence:", predictions[0, 0, 4].item())
+    print("class_index:", predictions[0, 0, 5].item())
+    
+    # Print sample target
+    print("\nSample target (first object):")
+    print("batch_idx:", targets[0, 0].item())
+    print("class:", targets[0, 1].item())
+    print("x, y, w, h:", targets[0, 2:].tolist())
 
 def test_student_model():
     """
@@ -64,10 +138,7 @@ def test_student_model():
         multiplier=4,
         stem_multiplier=3
     ).to(device)
-    
-    # Add required attributes for loss function
-    model.args = SimpleNamespace(box=7.5, cls=0.5, dfl=1.5)  # Loss gains
-    
+        
     # Initialize loss function
     loss_fn = v8DetectionLoss(model)
     
@@ -78,25 +149,21 @@ def test_student_model():
     print("\nStarting test training loop...")
     model.train()
     
-    for step in range(5):  # Test 5 steps
+    for step in range(3):  # Test 5 steps
         print(f"\nStep {step + 1}")
         
-        # Create random batch
-        batch = create_random_training_batch(
-            batch_size=batch_size,
-            img_size=img_size,
-            num_classes=num_classes,
-            device=device
-        )
-        
-        # Forward pass
-        optimizer.zero_grad()
-        predictions = model(batch['images'])
-        print("batch",batch)
-        
-        # Calculate loss
         try:
-            loss, loss_items = loss_fn(predictions, batch)
+            # Create random batch
+            batch = create_random_training_batch(batch_size=2, max_det=300, num_classes=6)
+            
+            # Forward pass
+            optimizer.zero_grad()
+            images = torch.randn(batch_size, 3, img_size, img_size, device=device)
+            predictions = model(images)  # Changed from batch['images'] to batch['img']
+            
+            # Calculate loss
+            loss, loss_items = loss_fn(predictions, batch)  # Using .call instead of direct call
+            
             print(f"Loss calculated successfully:")
             print(f"- Total loss: {loss.item():.4f}")
             print(f"- Box loss: {loss_items[0].item():.4f}")
@@ -108,7 +175,9 @@ def test_student_model():
             optimizer.step()
             
         except Exception as e:
-            print(f"Error during loss calculation: {str(e)}")
+            print(f"Error during step {step + 1}: {str(e)}")
+            import traceback
+            traceback.print_exc()
             break
             
         print(f"Step {step + 1} completed successfully")

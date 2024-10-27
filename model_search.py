@@ -106,7 +106,7 @@ class MixedOp(nn.Module):
     for w, op in zip(weights, self._ops):
       y=op(x)
       total += w * y
-      print(total.shape)
+      #print(total.shape)
     return total
 
 class StemLayer(nn.Module):
@@ -463,10 +463,10 @@ class Detect(nn.Module):
 
         for i in range(self.nl):
             x[i] = torch.cat((self.cv2[i](x[i]), self.cv3[i](x[i])), 1)
-        if self.training:  # Training path
-            return x
+        #if self.training:  # Training path
+            #return x
         y = self._inference(x)
-        
+        y = self.postprocess(y.permute(0, 2, 1), self.max_det, self.nc)
         return y if self.export else (y, x)
 
     def forward_end2end(self, x):
@@ -486,8 +486,8 @@ class Detect(nn.Module):
         ]
         for i in range(self.nl):
             x[i] = torch.cat((self.cv2[i](x[i]), self.cv3[i](x[i])), 1)
-        if self.training:  # Training path
-            return {"one2many": x, "one2one": one2one}
+        #if self.training:  # Training path
+            #return {"one2many": x, "one2one": one2one}
 
         y = self._inference(one2one)
         y = self.postprocess(y.permute(0, 2, 1), self.max_det, self.nc)

@@ -28,8 +28,8 @@ def test_network():
     #print(f"Output shape: {logits.shape}"
     
     for tensor in bbox_preds:
-        print(tensor.shape)
-        dbox,cls = process_yolov8_output(tensor)
+        print(tensor)
+        #dbox,cls = process_yolov8_output(tensor)
     #shape = bbox_preds[0].shape
     #bbox_preds = torch.cat([xi.view(shape[0], num_classes + 16, -1) for xi in bbox_preds], 2)
     #dbox = bbox_preds[:, : 16]
