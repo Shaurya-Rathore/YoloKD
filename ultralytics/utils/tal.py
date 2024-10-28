@@ -149,6 +149,7 @@ class TaskAlignedAssigner(nn.Module):
         if topk_mask is None:
             topk_mask = (topk_metrics.max(-1, keepdim=True)[0] > self.eps).expand_as(topk_idxs)
         # (b, max_num_obj, topk)
+        topk_mask = topk_mask.to(topk_idxs.device)
         topk_idxs.masked_fill_(~topk_mask, 0)
 
         # (b, max_num_obj, topk, h*w) -> (b, max_num_obj, h*w)
