@@ -58,7 +58,7 @@ class TaskAlignedAssigner(nn.Module):
         """
         self.bs = pd_scores.shape[0]
         self.n_max_boxes = gt_bboxes.shape[1]
-
+        pd_bboxes = pd_bboxes.to(device)
         if self.n_max_boxes == 0:
             device = gt_bboxes.device
             return (
