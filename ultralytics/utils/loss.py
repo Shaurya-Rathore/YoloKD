@@ -310,9 +310,9 @@ class v8SegmentationLoss(v8DetectionLoss):
             pred_scores.detach().sigmoid(),
             (pred_bboxes.detach() * stride_tensor).type(gt_bboxes.dtype),
             anchor_points.to('cpu') * stride_tensor.to('cpu'),
-            gt_labels,
-            gt_bboxes,
-            mask_gt,
+            gt_labels.to('cpu'),
+            gt_bboxes.to('cpu'),
+            mask_gt.to('cpu'),
         )
 
         target_scores_sum = max(target_scores.sum(), 1)
