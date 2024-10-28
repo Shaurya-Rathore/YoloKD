@@ -71,7 +71,7 @@ class TaskAlignedAssigner(nn.Module):
         pd_bboxes = pd_bboxes.to(device)
         device = pd_scores.device
         pd_bboxes = pd_bboxes.to(device)
-        anchor_points = anchor_points.to(device)
+        anc_points = anc_points.to(device)
         gt_labels = gt_labels.to(device)
         gt_bboxes = gt_bboxes.to(device)
         mask_gt = mask_gt.to(device)
