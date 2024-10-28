@@ -309,7 +309,7 @@ class v8SegmentationLoss(v8DetectionLoss):
         _, target_bboxes, target_scores, fg_mask, target_gt_idx = self.assigner(
             pred_scores.detach().sigmoid(),
             (pred_bboxes.detach() * stride_tensor).type(gt_bboxes.dtype),
-            anchor_points * stride_tensor,
+            anchor_points.to('cpu') * stride_tensor.to('cpu'),
             gt_labels,
             gt_bboxes,
             mask_gt,
