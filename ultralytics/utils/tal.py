@@ -224,6 +224,8 @@ class TaskAlignedAssigner(nn.Module):
             b: batch size, n_boxes: number of ground truth boxes, h: height, w: width.
             Bounding box format: [x_min, y_min, x_max, y_max].
         """
+        device = gt_bboxes.device  # Use GT boxes device as reference
+        xy_centers = xy_centers.to(device)
         n_anchors = xy_centers.shape[0]
         bs, n_boxes, _ = gt_bboxes.shape
         lt, rb = gt_bboxes.view(-1, 1, 4).chunk(2, 2)  # left-top, right-bottom
@@ -283,7 +285,7 @@ class RotatedTaskAlignedAssigner(TaskAlignedAssigner):
 
         Returns:
             (Tensor): shape(b, n_boxes, h*w)
-        """
+        """      
         # (b, n_boxes, 5) --> (b, n_boxes, 4, 2)
         corners = xywhr2xyxyxyxy(gt_bboxes)
         # (b, n_boxes, 1, 2)
