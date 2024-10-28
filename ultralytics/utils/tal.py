@@ -193,7 +193,9 @@ class TaskAlignedAssigner(nn.Module):
                                           of object classes.
         """
         # Assigned target labels, (b, 1)
-        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        device = gt_labels.device
+        target_gt_idx = target_gt_idx.to(device)
+        fg_mask = fg_mask.to(device)
         batch_ind = torch.arange(end=self.bs, dtype=torch.int64, device=gt_labels.device)[..., None]
         batch_ind = batch_ind.to(device)
         target_gt_idx = target_gt_idx.to(device)
