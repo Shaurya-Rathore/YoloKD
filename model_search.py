@@ -610,8 +610,7 @@ class YOLOv8StudentModel(nn.Module):
     ]
 
   def _loss(self, input, target):
-    logits = self(input)
-    return self._criterion(logits, target) 
+    return self._criterion 
   
   def genotype(self):
 
