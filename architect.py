@@ -3,7 +3,7 @@ import numpy as np
 import torch.nn as nn
 from torch.autograd import Variable
 from torch.cuda.amp import autocast
-
+from ultralytics.utils.loss import v8DetectionLoss
 
 def _concat(xs):
   return torch.cat([x.view(-1) for x in xs])
