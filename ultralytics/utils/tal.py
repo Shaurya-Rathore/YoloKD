@@ -196,6 +196,7 @@ class TaskAlignedAssigner(nn.Module):
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         batch_ind = torch.arange(end=self.bs, dtype=torch.int64, device=gt_labels.device)[..., None]
         batch_ind = batch_ind.to(device)
+        target_gt_idx = target_gt_idx.to(device)
         target_gt_idx = target_gt_idx + batch_ind * self.n_max_boxes  # (b, h*w)
         target_labels = gt_labels.long().flatten()[target_gt_idx]  # (b, h*w)
 
