@@ -39,8 +39,9 @@ class Architect(object):
 
   def _backward_step(self, input_valid, target_valid):
     with autocast():
-      loss= self.model._loss(input_valid, target_valid)
-      print (loss)
+      loss, _ = self.model._loss(input_valid, target_valid)  # loss should be a tensor here
+      print("Computed Loss:", loss.item())  # Print the scalar loss value for debugging
+      loss.backward()  
       loss.backward()
 
   def _backward_step_unrolled(self, input_train,target_train, input_valid, target_valid, eta, network_optimizer):
