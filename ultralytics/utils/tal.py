@@ -105,8 +105,7 @@ class TaskAlignedAssigner(nn.Module):
         mask_gt = mask_gt.bool()  # b, max_num_obj, h*w
         overlaps = torch.zeros([self.bs, self.n_max_boxes, na], dtype=pd_bboxes.dtype, device=pd_scores.device)
         bbox_scores = torch.zeros([self.bs, self.n_max_boxes, na], dtype=pd_scores.dtype, device=pd_scores.device)
-        print(f'pd : {pd_bboxes.device} scores: {pd_scores.device}')
-
+        
         ind = torch.zeros([2, self.bs, self.n_max_boxes], dtype=torch.long)  # 2, b, max_num_obj
         ind[0] = torch.arange(end=self.bs).view(-1, 1).expand(-1, self.n_max_boxes)  # b, max_num_obj
         ind[1] = gt_labels.squeeze(-1)  # b, max_num_obj
@@ -116,6 +115,8 @@ class TaskAlignedAssigner(nn.Module):
         # (b, max_num_obj, 1, 4), (b, 1, h*w, 4)
         pd_boxes = pd_bboxes.unsqueeze(1).expand(-1, self.n_max_boxes, -1, -1)[mask_gt]
         gt_boxes = gt_bboxes.unsqueeze(2).expand(-1, -1, na, -1)[mask_gt]
+        print(f'pd : {pd_boxes.device} gt: {gt_boxes.device}')
+
         overlaps[mask_gt] = self.iou_calculation(gt_boxes, pd_boxes)
 
         align_metric = bbox_scores.pow(self.alpha) * overlaps.pow(self.beta)
