@@ -234,7 +234,7 @@ class v8DetectionLoss:
 
         _, target_bboxes, target_scores, fg_mask, _ = self.assigner(
             pred_scores.detach().sigmoid(),
-            (pred_bboxes.detach() * stride_tensor).type(gt_bboxes.dtype),
+            (pred_bboxes.detach() * stride_tensor.to(cpu)).type(gt_bboxes.dtype),
             anchor_points * stride_tensor,
             gt_labels,
             gt_bboxes,
