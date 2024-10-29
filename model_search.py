@@ -64,6 +64,7 @@ class Conv(nn.Module):
     def forward(self, x):
         with autocast(device_type = "cuda"):
           """Apply convolution, batch normalization and activation to input tensor."""
+          self.conv_c4 = self.conv_c4.to(torch.float32)
           return self.act(self.bn(self.conv(x)))
 
     def forward_fuse(self, x):
