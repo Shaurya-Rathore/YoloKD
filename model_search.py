@@ -356,7 +356,7 @@ class DARTSBackbone(nn.Module):
     optimizer.zero_grad()  # Clear gradients
     
     # Use autocast for forward pass
-    with autocast():
+    with autocast(device_type = "cuda"):
       output = model(data)  # Forward pass
       loss = F.mse_loss(output[0], target)  # Example loss function
 
