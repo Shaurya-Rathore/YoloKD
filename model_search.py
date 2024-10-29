@@ -10,7 +10,7 @@ import time
 # from ultralytics.nn.modules.block import DFL
 from ultralytics.utils.loss import v8DetectionLoss
 from operations import *
-from torch.cuda.amp import autocast, GradScaler
+from torch.amp import autocast, GradScaler
 
 from genotypes import PRIMITIVES
 from genotypes import Genotype
