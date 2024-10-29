@@ -599,6 +599,11 @@ class YOLOv8StudentModel(nn.Module):
     self.model.append(self.detect)
     self._criterion = v8DetectionLoss(self,tal_topk=10)
     self._initialize_alphas()
+  
+  # In your model initialization or before training
+  def convert_to_half(self):
+      self.cv2 = self.cv2.half()
+      self.cv3 = self.cv3.half()
 
   def _initialize_alphas(self):
     k = sum(1 for i in range(self._steps) for n in range(2+i))

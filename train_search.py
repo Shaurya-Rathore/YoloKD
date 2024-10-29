@@ -156,44 +156,43 @@ def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr):
     objs = darts_utils.AvgrageMeter()
     top1 = darts_utils.AvgrageMeter()
     top5 = darts_utils.AvgrageMeter()
-    with autocast():
-        for step, (input, target) in enumerate(train_queue):
-            model.train()
-            n = input.size(0)
-            
-            input = Variable(input, requires_grad=False).cuda()
-            target = {
-                "batch_idx": Variable(target["batch_idx"], requires_grad=False).cuda(),
-                "cls": Variable(target["cls"], requires_grad=False).cuda(),
-                "bboxes": Variable(target["bboxes"], requires_grad=False).cuda(),
-            }
+    for step, (input, target) in enumerate(train_queue):
+        model.train()
+        n = input.size(0)
+        
+        input = Variable(input, requires_grad=False).cuda()
+        target = {
+            "batch_idx": Variable(target["batch_idx"], requires_grad=False).cuda(),
+            "cls": Variable(target["cls"], requires_grad=False).cuda(),
+            "bboxes": Variable(target["bboxes"], requires_grad=False).cuda(),
+        }
 
-            # Get a random minibatch from the validation queue
-            input_search, target_search = next(iter(valid_queue))
-            input_search = Variable(input_search, requires_grad=False).cuda()
-            target_search = {
-                "batch_idx": Variable(target_search["batch_idx"], requires_grad=False).cuda(),
-                "cls": Variable(target_search["cls"], requires_grad=False).cuda(),
-                "bboxes": Variable(target_search["bboxes"], requires_grad=False).cuda(),
-            }
-            logits = model(input)
-            logits_search = model(input_search)
-            architect.step(logits, target, logits_search, target_search, lr, optimizer, unrolled=args.unrolled)
+        # Get a random minibatch from the validation queue
+        input_search, target_search = next(iter(valid_queue))
+        input_search = Variable(input_search, requires_grad=False).cuda()
+        target_search = {
+            "batch_idx": Variable(target_search["batch_idx"], requires_grad=False).cuda(),
+            "cls": Variable(target_search["cls"], requires_grad=False).cuda(),
+            "bboxes": Variable(target_search["bboxes"], requires_grad=False).cuda(),
+        }
+        logits = model(input)
+        logits_search = model(input_search)
+        architect.step(logits, target, logits_search, target_search, lr, optimizer, unrolled=args.unrolled)
 
-            optimizer.zero_grad()
-            loss = criterion(logits, target)
-            loss.backward()
+        optimizer.zero_grad()
+        loss = criterion(logits, target)
+        loss.backward()
 
-            nn.utils.clip_grad_norm(model.parameters(), args.grad_clip)
-            optimizer.step()
+        nn.utils.clip_grad_norm(model.parameters(), args.grad_clip)
+        optimizer.step()
 
-            prec1, prec5 = darts_utils.accuracy(logits, target, topk=(1, 5))
-            objs.update(loss.data.item(), n)
-            top1.update(prec1.item(), n)
-            top5.update(prec5.item(), n)
+        prec1, prec5 = darts_utils.accuracy(logits, target, topk=(1, 5))
+        objs.update(loss.data.item(), n)
+        top1.update(prec1.item(), n)
+        top5.update(prec5.item(), n)
 
-            if step % args.report_freq == 0:
-                logging.info('train %03d %e %f %f', step, objs.avg, top1.avg, top5.avg)
+        if step % args.report_freq == 0:
+            logging.info('train %03d %e %f %f', step, objs.avg, top1.avg, top5.avg)
 
     return top1.avg, objs.avg
 
