@@ -19,7 +19,7 @@ from torch.autograd import Variable
 from model_search import YOLOv8StudentModel
 from architect import Architect
 from dataloader import YOLOObjectDetectionDataset,custom_collate_fn
-from torch.amp import autocast
+from torch.cuda.amp import autocast
 
 
 parser = argparse.ArgumentParser("WAID")
