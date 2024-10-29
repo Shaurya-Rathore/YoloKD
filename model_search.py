@@ -462,7 +462,7 @@ class Detect(nn.Module):
         """Concatenates and returns predicted bounding boxes and class probabilities."""
         if self.end2end:
             return self.forward_end2end(x)
-
+        x[i] = x[i].float()
         for i in range(self.nl):
             x[i] = torch.cat((self.cv2[i](x[i]), self.cv3[i](x[i])), 1)
         #if self.training:  # Training path
@@ -600,11 +600,6 @@ class YOLOv8StudentModel(nn.Module):
     self._criterion = v8DetectionLoss(self,tal_topk=10)
     self._initialize_alphas()
   
-  # In your model initialization or before training
-  def convert_to_half(self):
-      self.cv2 = self.cv2.half()
-      self.cv3 = self.cv3.half()
-
   def _initialize_alphas(self):
     k = sum(1 for i in range(self._steps) for n in range(2+i))
     num_ops = len(PRIMITIVES)
