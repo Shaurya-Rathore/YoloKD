@@ -322,7 +322,7 @@ class DARTSBackbone(nn.Module):
 
   def forward(self, x):
     # Use autocast for mixed precision
-    with autocast():
+    with autocast(device_type = "cuda"):
       s0 = s1 = self.stem(x)
       C2, C3 = None, None  # Capture outputs from the 6th and 10th cells
 
@@ -397,7 +397,7 @@ class NeckFPN(nn.Module):
         # c4: 75x75 from the final backbone cell (deepest, lowest resolution, most channels)
 
         # Step 1: Adjust channels for C4 (75x75)
-        with autocast():
+        with autocast(device_type = "cuda"):
           c4 = c4.to(torch.float16)
           c3 = c3.to(torch.float16)
           c2 = c2.to(torch.float16)
