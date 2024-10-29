@@ -156,7 +156,7 @@ def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr):
     objs = darts_utils.AvgrageMeter()
     top1 = darts_utils.AvgrageMeter()
     top5 = darts_utils.AvgrageMeter()
-    with autocast:
+    with autocast(device_type = "cuda"):
         for step, (input, target) in enumerate(train_queue):
             model.train()
             n = input.size(0)
