@@ -175,11 +175,11 @@ def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr):
             "cls": Variable(target_search["cls"], requires_grad=False).cuda(),
             "bboxes": Variable(target_search["bboxes"], requires_grad=False).cuda(),
         }
-
-        architect.step(input, target, input_search, target_search, lr, optimizer, unrolled=args.unrolled)
+        logits = model(input)
+        logits_search = model(input_search)
+        architect.step(logits, target, logits_search, target_search, lr, optimizer, unrolled=args.unrolled)
 
         optimizer.zero_grad()
-        logits = model(input)
         loss = criterion(logits, target)
         loss.backward()
 
