@@ -322,23 +322,23 @@ class DARTSBackbone(nn.Module):
 
   def forward(self, x):
     # Use autocast for mixed precision
-    with autocast():
-      s0 = s1 = self.stem(x)
-      C2, C3 = None, None  # Capture outputs from the 6th and 10th cells
+    #with autocast():
+    s0 = s1 = self.stem(x)
+    C2, C3 = None, None  # Capture outputs from the 6th and 10th cells
 
-      for i, cell in enumerate(self.cells):
-        # Apply weights based on the type of cell
-        if cell.reduction:
-          weights = F.softmax(self.alphas_reduce, dim=-1)
-        else:
-          weights = F.softmax(self.alphas_normal, dim=-1)
+    for i, cell in enumerate(self.cells):
+      # Apply weights based on the type of cell
+      if cell.reduction:
+        weights = F.softmax(self.alphas_reduce, dim=-1)
+      else:
+        weights = F.softmax(self.alphas_normal, dim=-1)
 
-        s0, s1 = s1, cell(s0, s1, weights)  # Forward pass through each cell
+      s0, s1 = s1, cell(s0, s1, weights)  # Forward pass through each cell
 
-        if i == self.cell6_index:
-          C2 = s1  # Output from the 6th cell
-        if i == self.cell10_index:
-          C3 = s1  # Output from the 10th cell
+      if i == self.cell6_index:
+        C2 = s1  # Output from the 6th cell
+      if i == self.cell10_index:
+        C3 = s1  # Output from the 10th cell
 
     C4 = s1  # Final output from the backbone
 
@@ -356,9 +356,9 @@ class DARTSBackbone(nn.Module):
     optimizer.zero_grad()  # Clear gradients
     
     # Use autocast for forward pass
-    with autocast():
-      output = model(data)  # Forward pass
-      loss = F.mse_loss(output[0], target)  # Example loss function
+    #with autocast():
+    output = model(data)  # Forward pass
+    loss = F.mse_loss(output[0], target)  # Example loss function
 
     # Scale loss and backward pass
     scaler.scale(loss).backward()
@@ -397,30 +397,30 @@ class NeckFPN(nn.Module):
         # c4: 75x75 from the final backbone cell (deepest, lowest resolution, most channels)
 
         # Step 1: Adjust channels for C4 (75x75)
-        with autocast():
-          #c4 = c4.to(torch.float16)
-          #c3 = c3.to(torch.float16)
-          #c2 = c2.to(torch.float16)
-          c4_out = self.conv_c4(c4)  # Adjust channels for C4: (75x75 -> 256 channels)
+        #with autocast():
+        #c4 = c4.to(torch.float16)
+        #c3 = c3.to(torch.float16)
+        #c2 = c2.to(torch.float16)
+        c4_out = self.conv_c4(c4)  # Adjust channels for C4: (75x75 -> 256 channels)
 
-          # Step 2: Upsample C4 (75x75 -> 150x150) and fuse with C3
-          c4_upsampled = F.interpolate(c4_out, scale_factor=2, mode='nearest')  # 75x75 -> 150x150
-          #c4_upsampled = c4_upsampled.to(torch.float16)
-          c3_fused = self.conv_c3(c3) + c4_upsampled  # Fuse C3 (150x150) and upsampled C4 (150x150)
-          #c3_fused = c3_fused.to(torch.float16)
-          # Step 3: Upsample fused C3 (150x150 -> 300x300) and fuse with C2
-          c3_upsampled = F.interpolate(c3_fused, scale_factor=2, mode='nearest')  # 150x150 -> 300x300
-          c3_upsampled = c3_upsampled.to(torch.float16)
-          c2_fused = self.conv_c2(c2) + c3_upsampled  # Fuse C2 (300x300) and upsampled C3 (300x300)
-          #c2_fused = c2_fused.to(torch.float16)
+        # Step 2: Upsample C4 (75x75 -> 150x150) and fuse with C3
+        c4_upsampled = F.interpolate(c4_out, scale_factor=2, mode='nearest')  # 75x75 -> 150x150
+        #c4_upsampled = c4_upsampled.to(torch.float16)
+        c3_fused = self.conv_c3(c3) + c4_upsampled  # Fuse C3 (150x150) and upsampled C4 (150x150)
+        #c3_fused = c3_fused.to(torch.float16)
+        # Step 3: Upsample fused C3 (150x150 -> 300x300) and fuse with C2
+        c3_upsampled = F.interpolate(c3_fused, scale_factor=2, mode='nearest')  # 150x150 -> 300x300
+        #c3_upsampled = c3_upsampled.to(torch.float16)
+        c2_fused = self.conv_c2(c2) + c3_upsampled  # Fuse C2 (300x300) and upsampled C3 (300x300)
+        #c2_fused = c2_fused.to(torch.float16)
 
-          # Step 4: Apply final 3x3 convolutions to each fused feature map
-          c2_final = self.final_c2(c2_fused)  # Final output for C2 (300x300)
-          c3_final = self.final_c3(c3_fused)  # Final output for C3 (150x150)
-          c4_final = self.final_c4(c4_out)    # Final output for C4 (75x75)
-          #c2_final = c2_final.to(torch.float16)
-          #c3_final = c3_final.to(torch.float16)
-          #c4_final = c4_final.to(torch.float16)
+        # Step 4: Apply final 3x3 convolutions to each fused feature map
+        c2_final = self.final_c2(c2_fused)  # Final output for C2 (300x300)
+        c3_final = self.final_c3(c3_fused)  # Final output for C3 (150x150)
+        c4_final = self.final_c4(c4_out)    # Final output for C4 (75x75)
+        #c2_final = c2_final.to(torch.float16)
+        #c3_final = c3_final.to(torch.float16)
+        #c4_final = c4_final.to(torch.float16)
 
         return c2_final, c3_final, c4_final  # Return feature maps at 300x300, 150x150, 75x75
 
