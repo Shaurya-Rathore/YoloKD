@@ -582,6 +582,11 @@ class YOLOv8StudentModel(nn.Module):
     super(YOLOv8StudentModel, self).__init__()
     self.args = SimpleNamespace(box=7.5, cls=0.5, dfl=1.5)  
     self.model = nn.ModuleList()
+    for module in self.model.modules():
+      if isinstance(module, (nn.Conv2d, nn.BatchNorm2d, nn.Linear)):
+          module.weight.data = module.weight.data.half()
+          if module.bias is not None:
+              module.bias.data = module.bias.data.half()
     
     # DARTS-based backbone with 14 layers (3 reduction cells)
     self.backbone = DARTSBackbone(C=C, layers=layers, steps=steps, multiplier=multiplier, stem_multiplier=stem_multiplier)
