@@ -15,6 +15,7 @@ from torch.amp import autocast, GradScaler
 from genotypes import PRIMITIVES
 from genotypes import Genotype
 from darts_utils import YOLOLoss
+import gc 
 
 def make_anchors(feats, strides, grid_cell_offset=0.5):
     """Generate anchors from features."""
@@ -107,6 +108,8 @@ class MixedOp(nn.Module):
   def forward(self, x, weights):
     total = 0
     for w, op in zip(weights, self._ops):
+      gc.collect()  
+      torch.cuda.empty_cache()
       y=op(x)
       total += w * y
       #print(total.shape)
