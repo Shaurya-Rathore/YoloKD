@@ -100,6 +100,7 @@ def main():
 
   model = YOLOv8StudentModel(WAID_CLASSES, args.init_channels, args.layers, steps=4, multiplier=4, stem_multiplier=3)
   model = model.cuda()
+  model = model.half()
   criterion = v8DetectionLoss(model)
   #criterion = criterion.cuda()
 
@@ -161,6 +162,7 @@ def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr):
         n = input.size(0)
         
         input = Variable(input, requires_grad=False).cuda()
+        input = input.half()
         target = {
             "batch_idx": Variable(target["batch_idx"], requires_grad=False).cuda(),
             "cls": Variable(target["cls"], requires_grad=False).cuda(),
