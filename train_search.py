@@ -131,26 +131,27 @@ def main():
 
   architect = Architect(model, args)
 
-  for epoch in range(args.epochs):
-    scheduler.step()
-    lr = scheduler.get_lr()[0]
-    logging.info('epoch %d lr %e', epoch, lr)
+  with autocast:
+    for epoch in range(args.epochs):
+        scheduler.step()
+        lr = scheduler.get_lr()[0]
+        logging.info('epoch %d lr %e', epoch, lr)
 
-    genotype = model.genotype()
-    logging.info('genotype = %s', genotype)
+        genotype = model.genotype()
+        logging.info('genotype = %s', genotype)
 
-    print(F.softmax(model.alphas_normal, dim=-1))
-    print(F.softmax(model.alphas_reduce, dim=-1))
+        print(F.softmax(model.alphas_normal, dim=-1))
+        print(F.softmax(model.alphas_reduce, dim=-1))
 
-    # training
-    train_acc, train_obj = train(train_queue, valid_queue, model, architect, criterion, optimizer, lr)
-    logging.info('train_acc %f', train_acc)
+        # training
+        train_acc, train_obj = train(train_queue, valid_queue, model, architect, criterion, optimizer, lr)
+        logging.info('train_acc %f', train_acc)
 
-    # validation
-    valid_acc, valid_obj = infer(valid_queue, model, criterion)
-    logging.info('valid_acc %f', valid_acc)
+        # validation
+        valid_acc, valid_obj = infer(valid_queue, model, criterion)
+        logging.info('valid_acc %f', valid_acc)
 
-    darts_utils.save(model, os.path.join(args.save, 'weights.pt'))
+        darts_utils.save(model, os.path.join(args.save, 'weights.pt'))
 
 
 def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr):
