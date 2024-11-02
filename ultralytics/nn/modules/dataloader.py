@@ -51,6 +51,9 @@ class YOLOObjectDetectionDataset(Dataset):
         labels = torch.tensor(class_labels, dtype=torch.int64)
 
         return image, boxes, labels
+    
+    def __len__(self):
+        return len(self.img_files)
 
     def get_class_name(self, class_id):
         return self.classes[class_id]
