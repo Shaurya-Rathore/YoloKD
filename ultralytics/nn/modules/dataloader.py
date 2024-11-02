@@ -9,7 +9,7 @@ import albumentations as A
 from albumentations.pytorch import ToTensorV2
 
 class YOLOObjectDetectionDataset(Dataset):
-    def __init__(self, img_dir, label_dir, classes, img_size=600):
+    def __init__(self, img_dir, label_dir, classes, img_size=600, transform = None):
         self.img_dir = img_dir
         self.label_dir = label_dir
         self.img_size = img_size
@@ -18,11 +18,7 @@ class YOLOObjectDetectionDataset(Dataset):
         self.img_files = [f for f in os.listdir(img_dir) if f.endswith(('.png', '.jpg', '.jpeg'))]
         
         # Define transformations
-        self.transform = A.Compose([
-            A.Resize(img_size, img_size),
-            # Add other transformations if needed
-            ToTensorV2(),
-        ], bbox_params=A.BboxParams(format='yolo', label_fields=['class_labels']))
+        self.transform = transform
 
     def __getitem__(self, idx):
         img_path = os.path.join(self.img_dir, self.img_files[idx])
