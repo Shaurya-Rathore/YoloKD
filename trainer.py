@@ -323,7 +323,7 @@ def train(train_queue, model, teacher, criterion, optimizer, args):
             print('pre-predict')
             global outputs_teacher
             outputs_teacher.clear()
-            _ = teacher(input)
+            teacher_output_final = teacher(input)
             print(f'trying for hook {outputs_teacher}')
             output = outputs_teacher[0]
             output = output[0]
@@ -342,7 +342,7 @@ def train(train_queue, model, teacher, criterion, optimizer, args):
         student_bbox, student_class, student_obj = process_yolov8_output(student_preds)
 
         print('basics')
-        loss = criterion(student_preds, output, targets)
+        loss = criterion(student_preds, teacher_output_final, targets)
         print('lossed')
         loss.backward()
         nn.utils.clip_grad_norm_(model.parameters(), args.grad_clip)
