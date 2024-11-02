@@ -136,7 +136,9 @@ parser.add_argument('--temperature', type=float, default=3.0, help='temperature 
 args = parser.parse_args()
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
-
+train_data = YOLOObjectDetectionDataset(img_dir=args.img_dir, label_dir=args.label_dir, classes=['sheep', 'cattle', 'seal', 'camelus', 'kiang', 'zebra'], transform=ultralytics.nn.modules.darts_utils._data_transforms_WAID_shaurya(args))
+train_queue = torch.utils.data.DataLoader(train_data, batch_size=args.batch_size, pin_memory=True, num_workers=2,collate_fn=custom_collate_fn)
+print(len(train_queue))
 # for name, layer in teacher.named_modules():
 #     print(name, layer)
 # teacher = YOLO('yolov8n.yaml')
@@ -312,6 +314,7 @@ def train(train_queue, model, teacher, criterion, optimizer, args):
 
     # layer_student.register_forward_hook(forward_hook_student)
 
+    print(f'train queue length: {len(train_queue)}')
     layer_teacher = getattr(teacher.model.model, '22')
 
     for step, (input, target) in enumerate(train_queue):
