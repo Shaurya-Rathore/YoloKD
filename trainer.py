@@ -11,6 +11,7 @@ import torch.nn as nn
 import ultralytics.nn.modules.genotypes
 import torch.utils
 import torchvision.datasets as dset
+import torch.nn.functional as F
 import torch.backends.cudnn as cudnn
 from ultralytics.nn.modules.dataloader import YOLOObjectDetectionDataset, custom_collate_fn
 from ultralytics.nn.modules.darts_utils import YOLOLoss, process_yolov8_output
@@ -20,6 +21,7 @@ import wandb
 import numpy as np
 import yaml
 from torch.autograd import Variable
+from ultralytics.utils.loss import v8DetectionLoss
 #from ultralytics.nn.modules.model import DARTSModel as Network
 
 wandb.login(key="833b800ff23eb3d26e6c85a8b9e1fc8bbafc9775") 
@@ -154,50 +156,88 @@ model = DummyYOLOStudent()
 print(model(input).shape)
 
 # YOLO Loss Class
+# class YOLOKDLoss(nn.Module):
+#     def __init__(self, lambda_bbox=5.0, lambda_obj=1.0, lambda_noobj=0.5, lambda_class=1.0, lambda_kd=0.7, temperature=3.0):
+#         super(YOLOKDLoss, self).__init__()
+#         self.lambda_bbox = lambda_bbox
+#         self.lambda_obj = lambda_obj
+#         self.lambda_noobj = lambda_noobj
+#         self.lambda_class = lambda_class
+#         self.lambda_kd = lambda_kd
+#         self.temperature = temperature
+
+#         self.mse = nn.MSELoss()
+#         self.bce = nn.BCELoss()
+#         self.ce = nn.CrossEntropyLoss()
+#         self.kldiv = nn.KLDivLoss(reduction='batchmean')
+
+#     def forward(self, student_preds, teacher_preds, targets):
+#         # Unpack predictions
+#         student_bbox, student_class, student_obj = process_yolov8_output(student_preds)
+#         teacher_bbox, teacher_class, teacher_obj = process_yolov8_output(teacher_preds)
+#         target_bbox, target_obj, target_class = targets
+
+#         # Standard YOLO losses against ground truth
+#         bbox_loss = self.mse(student_bbox, target_bbox)
+#         obj_loss = self.bce(student_obj, target_obj)
+#         no_obj_loss = self.bce(1 - student_obj, 1 - target_obj)
+#         class_loss = self.ce(student_class, target_class)
+
+#         # Knowledge distillation loss for class predictions (teacher vs student logits)
+#         soft_teacher_class = nn.functional.softmax(teacher_class / self.temperature, dim=-1)
+#         soft_student_class = nn.functional.log_softmax(student_class / self.temperature, dim=-1)
+#         kd_class_loss = self.kldiv(soft_student_class, soft_teacher_class) * (self.temperature ** 2)
+
+#         # Distill bounding box predictions (teacher vs student)
+#         kd_bbox_loss = self.mse(student_bbox, teacher_bbox)
+
+#         # Distill objectness predictions (teacher vs student)
+#         kd_obj_loss = self.bce(student_obj, teacher_obj)
+
+#         # Combine the losses
+#         total_loss = (self.lambda_bbox * bbox_loss +
+#                       self.lambda_obj * obj_loss +
+#                       self.lambda_noobj * no_obj_loss +
+#                       self.lambda_class * class_loss +
+#                       self.lambda_kd * (kd_class_loss + kd_bbox_loss + kd_obj_loss))
+
+#         return total_loss
+
 class YOLOKDLoss(nn.Module):
-    def __init__(self, lambda_bbox=5.0, lambda_obj=1.0, lambda_noobj=0.5, lambda_class=1.0, lambda_kd=0.7, temperature=3.0):
+    def __init__(self, model, lambda_kd=0.7, temperature=3.0, tal_topk=10):
         super(YOLOKDLoss, self).__init__()
-        self.lambda_bbox = lambda_bbox
-        self.lambda_obj = lambda_obj
-        self.lambda_noobj = lambda_noobj
-        self.lambda_class = lambda_class
         self.lambda_kd = lambda_kd
         self.temperature = temperature
+        self.device = next(model.parameters()).device
 
-        self.mse = nn.MSELoss()
-        self.bce = nn.BCELoss()
-        self.ce = nn.CrossEntropyLoss()
+        # Initialize the v8DetectionLoss for hard label training
+        self.hard_loss = v8DetectionLoss(model, tal_topk=tal_topk)
+
+        # KL Divergence loss for knowledge distillation
         self.kldiv = nn.KLDivLoss(reduction='batchmean')
 
-    def forward(self, student_preds, teacher_preds, targets):
-        # Unpack predictions
-        student_bbox, student_class, student_obj = process_yolov8_output(student_preds)
-        teacher_bbox, teacher_class, teacher_obj = process_yolov8_output(teacher_preds)
-        target_bbox, target_obj, target_class = targets
+    def forward(self, student_preds, teacher_preds, batch):
+        # Compute the standard loss using v8DetectionLoss (hard labels)
+        hard_loss_value, hard_loss_components = self.hard_loss(student_preds, batch)
 
-        # Standard YOLO losses against ground truth
-        bbox_loss = self.mse(student_bbox, target_bbox)
-        obj_loss = self.bce(student_obj, target_obj)
-        no_obj_loss = self.bce(1 - student_obj, 1 - target_obj)
-        class_loss = self.ce(student_class, target_class)
+        # Process student and teacher predictions
+        # Assuming student_preds and teacher_preds are in the same format
+        student_feats = student_preds[1] if isinstance(student_preds, tuple) else student_preds
+        teacher_feats = teacher_preds[1] if isinstance(teacher_preds, tuple) else teacher_preds
 
-        # Knowledge distillation loss for class predictions (teacher vs student logits)
-        soft_teacher_class = nn.functional.softmax(teacher_class / self.temperature, dim=-1)
-        soft_student_class = nn.functional.log_softmax(student_class / self.temperature, dim=-1)
-        kd_class_loss = self.kldiv(soft_student_class, soft_teacher_class) * (self.temperature ** 2)
+        # Concatenate features
+        student_pred_scores = torch.cat([xi.view(student_feats[0].shape[0], -1) for xi in student_feats], 1)
+        teacher_pred_scores = torch.cat([xi.view(teacher_feats[0].shape[0], -1) for xi in teacher_feats], 1)
 
-        # Distill bounding box predictions (teacher vs student)
-        kd_bbox_loss = self.mse(student_bbox, teacher_bbox)
+        # Apply softmax with temperature scaling
+        soft_teacher_preds = F.softmax(teacher_pred_scores / self.temperature, dim=-1)
+        soft_student_preds = F.log_softmax(student_pred_scores / self.temperature, dim=-1)
 
-        # Distill objectness predictions (teacher vs student)
-        kd_obj_loss = self.bce(student_obj, teacher_obj)
+        # Compute KD loss using KL divergence
+        kd_loss = self.kldiv(soft_student_preds, soft_teacher_preds) * (self.temperature ** 2)
 
-        # Combine the losses
-        total_loss = (self.lambda_bbox * bbox_loss +
-                      self.lambda_obj * obj_loss +
-                      self.lambda_noobj * no_obj_loss +
-                      self.lambda_class * class_loss +
-                      self.lambda_kd * (kd_class_loss + kd_bbox_loss + kd_obj_loss))
+        # Total loss
+        total_loss = hard_loss_value + self.lambda_kd * kd_loss
 
         return total_loss
 
@@ -208,7 +248,6 @@ def main():
         sys.exit(1)
     
     model = DummyYOLOStudent()
-    criterion = YOLOKDLoss().cuda()
     optimizer = torch.optim.SGD(model.parameters(), lr=args.learning_rate, momentum=args.momentum, weight_decay=args.weight_decay)
 
     train_data = YOLOObjectDetectionDataset(img_dir=args.img_dir, label_dir=args.label_dir, classes=['sheep', 'cattle', 'seal', 'camelus', 'kiang', 'zebra'], transform=ultralytics.nn.modules.darts_utils._data_transforms_WAID_shaurya(args))
@@ -231,6 +270,7 @@ def main():
             module._backward_hooks = {}
         print('done')
     layer_teacher = getattr(teacher.model.model, '22')
+    criterion = YOLOKDLoss(model, lambda_kd=0.7, temperature=3.0)
 
     print(layer_teacher)
     layer_teacher.dfl.register_forward_hook(forward_hook_teacher)
@@ -273,6 +313,8 @@ def train(train_queue, model, teacher, criterion, optimizer, args):
     # layer_student.register_forward_hook(forward_hook_student)
 
     print(f'train queue length: {len(train_queue)}')
+    layer_teacher = getattr(teacher.model.model, '22')
+
     for step, (input, target) in enumerate(train_queue):
         input, target = input.cuda(), target.cuda()
         optimizer.zero_grad()
@@ -286,6 +328,8 @@ def train(train_queue, model, teacher, criterion, optimizer, args):
             output = outputs_teacher[0]
             output = output[0]
             print(f'trainers {output}')
+            output = layer_teacher.postprocess(output.permute(0, 2, 1), 100, 6)
+            print(f'postprocess {output}')
 
         print(f'student outputs: {model(input)}')
         student_preds = model(input)
