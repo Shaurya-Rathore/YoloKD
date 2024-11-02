@@ -270,7 +270,7 @@ def main():
             module._backward_hooks = {}
         print('done')
     layer_teacher = getattr(teacher.model.model, '22')
-    criterion = YOLOKDLoss(model, lambda_kd=0.7, temperature=3.0)
+    criterion = YOLOKDLoss(teacher, lambda_kd=0.7, temperature=3.0)
 
     print(layer_teacher)
     layer_teacher.dfl.register_forward_hook(forward_hook_teacher)
