@@ -131,7 +131,7 @@ def main():
 
   architect = Architect(model, args)
 
-  with autocast(device_type = "cuda"):
+  with autocast(device = "cuda"):
     for epoch in range(args.epochs):
         scheduler.step()
         lr = scheduler.get_lr()[0]
