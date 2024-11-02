@@ -312,7 +312,6 @@ def train(train_queue, model, teacher, criterion, optimizer, args):
 
     # layer_student.register_forward_hook(forward_hook_student)
 
-    print(f'train queue length: {len(train_queue)}')
     layer_teacher = getattr(teacher.model.model, '22')
 
     for step, (input, target) in enumerate(train_queue):
