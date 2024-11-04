@@ -340,22 +340,17 @@ def train(train_queue, model, teacher, criterion, optimizer, args):
 
         print(f'student outputs: {model(input)}')
         student_preds = model(input)
-
-        target_bbox = target['bbox']
-        target_obj = target['obj']
-        target_class = target['class']
-        targets = (target_bbox, target_obj, target_class)
         
         student_bbox, student_class, student_obj = process_yolov8_output(student_preds)
 
         print('basics')
-        loss = criterion(student_preds, teacher_output_final, targets)
+        loss = criterion(student_preds, teacher_output_final, target)
         print('lossed')
         loss.backward()
         nn.utils.clip_grad_norm_(model.parameters(), args.grad_clip)
         optimizer.step()
 
-        prec1, prec5 = ultralytics.nn.modules.darts_utils.accuracy(student_class, target_class, topk=(1, 5))
+        prec1, prec5 = ultralytics.nn.modules.darts_utils.accuracy(student_class, target['cls'], topk=(1, 5))
         n = input.size(0)
         objs.update(loss.item(), n)
         top1.update(prec1.item(), n)
