@@ -348,6 +348,7 @@ def train(train_queue, model, teacher, criterion, optimizer, args):
 
         print(f'student outputs: {get_shapes(model(input))}')
         student_preds = model(input)
+        student_preds = process_yolo_outputs(student_preds, num_classes=6)
             
         student_bbox, student_class, student_obj = process_yolov8_output(student_preds)
 
@@ -401,3 +402,30 @@ if __name__ == '__main__':
         main()
     except Exception as e:
         print(f"An error occurred: {e}")
+
+
+
+def process_yolo_outputs(predictions, num_classes):
+    processed_outputs = []
+
+    for pred in predictions:
+        # pred shape: [batch_size, num_anchors * (num_classes + 5), H, W]
+        batch_size, _, H, W = pred.shape
+        num_anchors = 3  # Assuming 3 anchor boxes per scale
+
+        # Reshape to [batch_size, num_anchors, num_classes + 5, H, W]
+        pred = pred.view(batch_size, num_anchors, num_classes + 5, H, W)
+
+        # Split into bounding box coordinates, objectness score, and class probabilities
+        bbox_coords = pred[:, :, :4, :, :]  # [batch_size, num_anchors, 4, H, W]
+        objectness_score = pred[:, :, 4, :, :]  # [batch_size, num_anchors, H, W]
+        class_probs = pred[:, :, 5:, :, :]  # [batch_size, num_anchors, num_classes, H, W]
+
+        # Apply activations if needed (e.g., sigmoid for objectness and class probabilities)
+        objectness_score = torch.sigmoid(objectness_score)
+        class_probs = torch.sigmoid(class_probs)
+
+        # Collect the processed outputs
+        processed_outputs.append((bbox_coords, objectness_score, class_probs))
+
+    return processed_outputs
