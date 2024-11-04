@@ -262,13 +262,13 @@ def main():
 
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, float(args.epochs))
     print('before epochs')
-    teacher = YOLO('yolov8m.yaml')
+    teacher = YOLO('yolov8-LDconv.yaml')
     model_state_dict = torch.load("/kaggle/input/yolov8m-pt/yolov8m.pt")
     teacher.model.load_state_dict(model_state_dict, strict=False)
     layer_teacher = getattr(teacher.model.model, '22')
 
     teacher.to(device)
-    teacher.train(data='/kaggle/input/waiddataset/WAID-main/WAID-main/WAID/data.yaml', epochs=1, batch=8, optimizer= 'AdamW')
+    #teacher.train(data='/kaggle/input/waiddataset/WAID-main/WAID-main/WAID/data.yaml', epochs=1, batch=8, optimizer= 'AdamW')
     input = torch.rand(2,3,640,640)
     print(get_shapes(teacher(input)))
     for module in teacher.modules():
