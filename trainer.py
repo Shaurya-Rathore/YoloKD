@@ -346,9 +346,9 @@ def train(train_queue, model, teacher, criterion, optimizer, args):
             output = layer_teacher.postprocess(output.permute(0, 2, 1), 100, 6)
             print(f'postprocess {output}')
 
-        print(f'student outputs: {model(input)}')
+        print(f'student outputs: {get_shapes(model(input))}')
         student_preds = model(input)
-        
+            
         student_bbox, student_class, student_obj = process_yolov8_output(student_preds)
 
         print('basics')
