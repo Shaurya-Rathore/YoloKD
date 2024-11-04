@@ -195,7 +195,8 @@ def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr):
         top5.update(prec5.item(), n)
 
         if step % args.report_freq == 0:
-            logging.info('train %03d %e %f %f', step, objs.avg, top1.avg, top5.avg)
+           logging.info('train loss',step,loss)
+            #logging.info('train %03d %e %f %f', step, objs.avg, top1.avg, top5.avg)
 
     return top1.avg, objs.avg
 
@@ -221,7 +222,8 @@ def infer(valid_queue, model, criterion):
     top5.update(prec5.data[0], n)
 
     if step % args.report_freq == 0:
-      logging.info('valid %03d %e %f %f', step, objs.avg, top1.avg, top5.avg)
+       logging.info('train loss',step,loss)
+      #logging.info('valid %03d %e %f %f', step, objs.avg, top1.avg, top5.avg)
 
   return top1.avg, objs.avg
 
