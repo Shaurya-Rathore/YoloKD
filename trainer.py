@@ -223,23 +223,29 @@ class YOLOKDLoss(nn.Module):
 
     def forward(self, student_preds, teacher_preds, batch):
         # Compute the standard loss using v8DetectionLoss (hard labels)
+        print('a')
         hard_loss_value, hard_loss_components = self.hard_loss(student_preds, batch)
+        print('a')
 
         # Process student and teacher predictions
         # Assuming student_preds and teacher_preds are in the same format
         student_feats = student_preds[1] if isinstance(student_preds, tuple) else student_preds
         teacher_feats = teacher_preds[1] if isinstance(teacher_preds, tuple) else teacher_preds
+        print('a')
 
         # Concatenate features
         student_pred_scores = torch.cat([xi.view(student_feats[0].shape[0], -1) for xi in student_feats], 1)
         teacher_pred_scores = torch.cat([xi.view(teacher_feats[0].shape[0], -1) for xi in teacher_feats], 1)
+        print('a')
 
         # Apply softmax with temperature scaling
         soft_teacher_preds = F.softmax(teacher_pred_scores / self.temperature, dim=-1)
         soft_student_preds = F.log_softmax(student_pred_scores / self.temperature, dim=-1)
+        print('a')
 
         # Compute KD loss using KL divergence
         kd_loss = self.kldiv(soft_student_preds, soft_teacher_preds) * (self.temperature ** 2)
+        print('a')
 
         # Total loss
         total_loss = hard_loss_value + self.lambda_kd * kd_loss
