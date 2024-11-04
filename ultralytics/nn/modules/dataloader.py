@@ -55,7 +55,7 @@ class YOLOObjectDetectionDataset(Dataset):
         return image, target
     
     def __len__(self):
-        return len(self.img_files)
+        return len(self.image_paths)
 
     def get_class_name(self, class_id):
         return self.classes[class_id]
