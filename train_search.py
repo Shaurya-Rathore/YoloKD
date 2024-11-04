@@ -83,6 +83,38 @@ WAID_CLASSES = 6
 
     return inputs_padded, targets_padded"""
 
+def check_gradients(model):
+    has_gradients = False
+    for name, param in model.named_parameters():
+        if param.requires_grad:
+            if param.grad is not None:
+                if param.grad.abs().sum() > 0:
+                    has_gradients = True
+                    print(f"Parameter {name} has non-zero gradients")
+                    break
+    if not has_gradients:
+        print("WARNING: No gradients are flowing!")
+
+def check_weight_updates(model):
+    # Store initial weights
+    initial_weights = {}
+    for name, param in model.named_parameters():
+        if param.requires_grad:
+            initial_weights[name] = param.data.clone()
+    
+    return initial_weights
+
+def compare_weights(model, initial_weights):
+    changed = False
+    for name, param in model.named_parameters():
+        if param.requires_grad:
+            if not torch.equal(initial_weights[name], param.data):
+                print(f"Weights changed for {name}")
+                changed = True
+                break
+    if not changed:
+        print("WARNING: No weights were updated!")
+
 def main():
   if not torch.cuda.is_available():
     logging.info('no gpu device available')
@@ -184,6 +216,7 @@ def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr):
     cls_loss_meter = darts_utils.AvgrageMeter()
     dfl_loss_meter = darts_utils.AvgrageMeter()
     for step, (input, target) in enumerate(train_queue):
+        initial_weights = check_weight_updates(model)
         model.train()
         n = input.size(0)
         
@@ -210,13 +243,27 @@ def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr):
         architect.step(pred, target, pred_search, target_search, lr, optimizer, unrolled=args.unrolled)
         # Optimization step
         optimizer.zero_grad()
+
+        print("Model output shape:", [p.shape for p in pred])
+        print("Target shapes:", {k: v.shape for k, v in target.items()})
+        print("Sample pred values:", [p.mean().item() for p in pred])
+        print("Sample target values:", {k: v.mean().item() if torch.is_tensor(v) else v for k, v in target.items()})
+
+
         total_loss, loss_items = criterion(pred, target)
         total_loss.backward()
+
+        print("Loss components:", loss_items)
+        print("Total loss value:", total_loss.item())
+
+        print("Loss components:", loss_items)
+        print("Total loss value:", total_loss.item())
 
         # Gradient clipping
         if args.grad_clip:
             torch.nn.utils.clip_grad_norm_(model.parameters(), args.grad_clip)
         optimizer.step()
+        compare_weights(model, initial_weights)
 
         # Update metrics
         box_loss, cls_loss, dfl_loss = loss_items
