@@ -61,49 +61,38 @@ class DummyYOLOStudent(nn.Module):
     def __init__(self, num_classes=6):
         super(DummyYOLOStudent, self).__init__()
         
-        # Backbone (simple convolution layers instead of YOLO-like backbone)
+        # Backbone: A simple CNN with three blocks
         self.backbone = nn.Sequential(
-            nn.Conv2d(3, 16, kernel_size=3, stride=1, padding=1),  # Input image has 3 channels (RGB)
+            nn.Conv2d(3, 16, kernel_size=3, stride=1, padding=1),
             nn.BatchNorm2d(16),
             nn.ReLU(),
-            nn.MaxPool2d(kernel_size=2, stride=2),  # Reduce spatial size by 2
+            nn.MaxPool2d(kernel_size=2, stride=2),  # Downsample by 2
             
             nn.Conv2d(16, 32, kernel_size=3, stride=1, padding=1),
             nn.BatchNorm2d(32),
             nn.ReLU(),
-            nn.MaxPool2d(kernel_size=2, stride=2),
+            nn.MaxPool2d(kernel_size=2, stride=2),  # Downsample by 2
             
             nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=1),
             nn.BatchNorm2d(64),
             nn.ReLU(),
-            nn.MaxPool2d(kernel_size=2, stride=2)
+            nn.MaxPool2d(kernel_size=2, stride=2)   # Downsample by 2
         )
         
-        # YOLO-like detection head
-        self.head = nn.Sequential(
-            nn.Conv2d(64, 128, kernel_size=3, stride=1, padding=1),
-            nn.BatchNorm2d(128),
-            nn.ReLU(),
-            
-            nn.Conv2d(128, num_classes + 4, kernel_size=1),  # num_classes + 4 (for bbox coordinates + obj score)
-        )
-        
+        # Detection heads for P3, P4, P5 scales
+        self.head_p3 = nn.Conv2d(64, 3 * (num_classes + 5), kernel_size=1)
+        self.head_p4 = nn.Conv2d(64, 3 * (num_classes + 5), kernel_size=1)
+        self.head_p5 = nn.Conv2d(64, 3 * (num_classes + 5), kernel_size=1)
+
     def forward(self, x):
-        # Pass through the backbone
-        x = self.backbone(x)
+        features = self.backbone(x)
         
-        # Pass through the detection head
-        x = self.head(x)
-        x = x.view(2,10,6400)
+        # Generate predictions at different scales
+        pred_p3 = self.head_p3(features)
+        pred_p4 = self.head_p4(features)
+        pred_p5 = self.head_p5(features)
         
-        # Split output into bbox, objectness, and class predictions
-        # Assuming output format: [batch, num_anchors, num_classes + 5, H, W]
-        # Here we simply reshape to simplify, depending on the YOLO format you're using.
-        # BBox predictions: 4 coordinates per bounding box (center_x, center_y, width, height)
-        # Objectness prediction: 1 score for each anchor
-        # Class prediction: num_classes probabilities for each anchor
-        
-        return x
+        return [pred_p3, pred_p4, pred_p5]
 
 
 # Argument Parsing
