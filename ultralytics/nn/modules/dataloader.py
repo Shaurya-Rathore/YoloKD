@@ -3,6 +3,7 @@ import torch
 from torch.utils.data import Dataset
 from torchvision.transforms import transforms
 from PIL import Image
+from torch.nn.utils.rnn import pad_sequence
 import numpy as np
 import glob
 
@@ -61,40 +62,29 @@ class YOLOObjectDetectionDataset(Dataset):
         return self.classes[class_id]
 
 def custom_collate_fn(batch):
-    # Separate batch components
-    images = []
-    targets = []
-
-    for i, (image, box, label) in enumerate(batch):
-        images.append(image)
-
-        if box.numel() > 0:  # Check if there are any boxes
-            # Calculate the center coordinates, width, and height for each bounding box
-            x_center = (box[:, 0] + box[:, 2]) / 2.0
-            y_center = (box[:, 1] + box[:, 3]) / 2.0
-            width = box[:, 2] - box[:, 0]
-            height = box[:, 3] - box[:, 1]
-            
-            # Stack these into a tensor (bbox predictions)
-            bbox = torch.stack((x_center, y_center, width, height), dim=1)
-
-             # Concatenate the class labels and box coordinates
-            target = torch.cat([label.unsqueeze(1).float(), bbox], dim=1)
-            # Add the batch index as the first column
-            target = torch.cat([torch.full((target.shape[0], 1), i).float(), target], dim=1)
-            targets.append(target)
-
-    # Stack images along the batch dimension
-    images = torch.stack(images, 0)
-
-    # Concatenate all bbox and class prediction tensors into a single tensor
-    # Concatenate all target tensors into a single tensor
-    if targets:
-        targets = torch.cat(targets, 0)
-    else:
-        # If no targets, create an empty tensor with shape [0, 6]
-        targets = torch.zeros((0, 6))
-    # Return the images, bbox predictions, and class predictions
+    images, targets = zip(*batch)  # Separate images and targets
     
-    return images, targets
+    # Stack images into a single tensor (batch_size, channels, height, width)
+    images = torch.stack(images)
+
+    # Process targets
+    batch_indices = []
+    cls_labels = []
+    bboxes = []
+
+    for target in targets:
+        batch_indices.append(target["batch_idx"])
+        cls_labels.append(target["cls"])
+        bboxes.append(target["bboxes"])
+
+    # Pad batch indices, class labels, and bounding boxes to the same size
+    batch_indices_padded = pad_sequence(batch_indices, batch_first=True)
+    cls_labels_padded = pad_sequence(cls_labels, batch_first=True)
+    bboxes_padded = pad_sequence(bboxes, batch_first=True)
+
+    # Return images and the padded targets
+    return images, {
+        "batch_idx": batch_indices_padded,
+        "cls": cls_labels_padded,
+        "bboxes": bboxes_padded}
 
