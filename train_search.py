@@ -130,6 +130,8 @@ def main():
         optimizer, float(args.epochs), eta_min=args.learning_rate_min)
 
   architect = Architect(model, args)
+  scaler = torch.cuda.amp.GradScaler()  # For mixed precision training
+  best_loss = float('inf')
 
   with autocast(enabled=True):
     for epoch in range(args.epochs):
@@ -145,21 +147,42 @@ def main():
 
         # training
         #train_acc, train_obj 
-        train_loss = train(train_queue, valid_queue, model, architect, criterion, optimizer, lr)
-        logging.info('loss %f',train_loss)
+        train_total_loss, train_loss_dict = train(
+                train_queue, 
+                valid_queue, 
+                model, 
+                architect, 
+                criterion, 
+                optimizer, 
+                lr
+            )
+            
+        logging.info(
+                'Training - Total Loss: %.4f | Box Loss: %.4f | Class Loss: %.4f | DFL Loss: %.4f',
+                train_total_loss,
+                train_loss_dict['box_loss'],
+                train_loss_dict['cls_loss'],
+                train_loss_dict['dfl_loss']
+            )
 
-        # validation
-        #valid_acc, valid_obj 
-        valid_loss = infer(valid_queue, model, criterion)
-        logging.info('valid_loss %f', valid_loss)
+         # Validation
+        valid_total_loss, valid_loss_dict = infer(valid_queue, model, criterion)
+        logging.info(
+                'Validation - Total Loss: %.4f | Box Loss: %.4f | Class Loss: %.4f | DFL Loss: %.4f',
+                valid_total_loss,
+                valid_loss_dict['box_loss'],
+                valid_loss_dict['cls_loss'],
+                valid_loss_dict['dfl_loss']
+            )
 
         darts_utils.save(model, os.path.join(args.save, 'weights.pt'))
 
 
 def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr):
-    objs = darts_utils.AvgrageMeter()
-    top1 = darts_utils.AvgrageMeter()
-    top5 = darts_utils.AvgrageMeter()
+    loss_meter = darts_utils.AvgrageMeter()
+    box_loss_meter = darts_utils.AvgrageMeter()
+    cls_loss_meter = darts_utils.AvgrageMeter()
+    dfl_loss_meter = darts_utils.AvgrageMeter()
     for step, (input, target) in enumerate(train_queue):
         model.train()
         n = input.size(0)
@@ -180,54 +203,103 @@ def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr):
             "cls": Variable(target_search["cls"], requires_grad=False).cuda(),
             "bboxes": Variable(target_search["bboxes"], requires_grad=False).cuda(),
         }
-        logits = model(input)
-        logits_search = model(input_search)
-        architect.step(logits, target, logits_search, target_search, lr, optimizer, unrolled=args.unrolled)
-
+        pred = model(input)
+        pred_search = model(input_search)
+        
+        # Architecture step
+        architect.step(pred, target, pred_search, target_search, lr, optimizer, unrolled=args.unrolled)
+        # Optimization step
         optimizer.zero_grad()
-        loss = criterion(logits, target)
-        loss.backward()
+        total_loss, loss_items = criterion(pred, target)
+        total_loss.backward()
 
-        torch.nn.utils.clip_grad_norm_(model.parameters(), args.grad_clip)
+        # Gradient clipping
+        if args.grad_clip:
+            torch.nn.utils.clip_grad_norm_(model.parameters(), args.grad_clip)
         optimizer.step()
 
-        prec1, prec5 = darts_utils.accuracy(logits, target, topk=(1, 5))
-        objs.update(loss.data.item(), n)
-        top1.update(prec1.item(), n)
-        top5.update(prec5.item(), n)
+        # Update metrics
+        box_loss, cls_loss, dfl_loss = loss_items
+        loss_meter.update(total_loss.item(), n)
+        box_loss_meter.update(box_loss.item(), n)
+        cls_loss_meter.update(cls_loss.item(), n)
+        dfl_loss_meter.update(dfl_loss.item(), n)
 
+        # Logging
         if step % args.report_freq == 0:
-           logging.info('train loss',step,loss)
-            #logging.info('train %03d %e %f %f', step, objs.avg, top1.avg, top5.avg)
+            logging.info(
+                f'Step: {step} | '
+                f'Total Loss: {loss_meter.avg:.4f} | '
+                f'Box Loss: {box_loss_meter.avg:.4f} | '
+                f'Class Loss: {cls_loss_meter.avg:.4f} | '
+                f'DFL Loss: {dfl_loss_meter.avg:.4f}'
+            )
 
-    return loss#top1.avg, objs.avg
+    return (
+        loss_meter.avg,
+        {
+            'box_loss': box_loss_meter.avg,
+            'cls_loss': cls_loss_meter.avg,
+            'dfl_loss': dfl_loss_meter.avg
+        }
+    )
 
 
 
 def infer(valid_queue, model, criterion):
-  objs = darts_utils.AvgrageMeter()
-  top1 = darts_utils.AvgrageMeter()
-  top5 = darts_utils.AvgrageMeter()
-  model.eval()
-
-  for step, (input, target) in enumerate(valid_queue):
-    input = Variable(input, volatile=True).cuda()
-    target = Variable(target, volatile=True).cuda()
-
-    logits = model(input)
-    loss = criterion(logits, target)
-
-    prec1, prec5 = darts_utils.accuracy(logits, target, topk=(1, 5))
-    n = input.size(0)
-    objs.update(loss.data[0], n)
-    top1.update(prec1.data[0], n)
-    top5.update(prec5.data[0], n)
-
-    if step % args.report_freq == 0:
-       logging.info('train loss',step,loss)
-      #logging.info('valid %03d %e %f %f', step, objs.avg, top1.avg, top5.avg)
-
-  return loss #top1.avg, objs.avg
+  loss_meter = darts_utils.AvgrageMeter()
+  box_loss_meter = darts_utils.AvgrageMeter()
+  cls_loss_meter = darts_utils.AvgrageMeter()
+  dfl_loss_meter = darts_utils.AvgrageMeter()
+  model.eval()  
+    
+  with torch.no_grad():  # Disable gradient computation
+      for step, (input, target) in enumerate(valid_queue):
+          # Process input
+          input = input.cuda()
+          input = input.half()  # Convert to half precision
+          
+          # Process targets
+          target = {
+              "batch_idx": target["batch_idx"].cuda(),
+              "cls": target["cls"].cuda(),
+              "bboxes": target["bboxes"].cuda(),
+          }
+          
+          # Forward pass
+          with autocast(enabled=True):  # Use mixed precision
+              pred = model(input)
+              total_loss, loss_items = criterion(pred, target)
+              
+              # Unpack loss items
+              box_loss, cls_loss, dfl_loss = loss_items
+              
+              # Update meters
+              n = input.size(0)
+              loss_meter.update(total_loss.item(), n)
+              box_loss_meter.update(box_loss.item(), n)
+              cls_loss_meter.update(cls_loss.item(), n)
+              dfl_loss_meter.update(dfl_loss.item(), n)
+          
+          # Logging
+          if step % args.report_freq == 0:
+              logging.info(
+                  f'Validation Step: {step} | '
+                  f'Total Loss: {loss_meter.avg:.4f} | '
+                  f'Box Loss: {box_loss_meter.avg:.4f} | '
+                  f'Class Loss: {cls_loss_meter.avg:.4f} | '
+                  f'DFL Loss: {dfl_loss_meter.avg:.4f}'
+              )
+  
+  # Return both total loss and individual components
+  return (
+      loss_meter.avg,
+      {
+          'box_loss': box_loss_meter.avg,
+          'cls_loss': cls_loss_meter.avg,
+          'dfl_loss': dfl_loss_meter.avg
+      }
+  )
 
 
 if __name__ == '__main__':
