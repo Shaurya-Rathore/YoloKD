@@ -270,16 +270,19 @@ def main():
     teacher.to(device)
     #teacher.train(data='/kaggle/input/waiddataset/WAID-main/WAID-main/WAID/data.yaml', epochs=1, batch=8, optimizer= 'AdamW')
     input = torch.rand(2,3,640,640)
-    print(get_shapes(teacher(input)))
+    
     for module in teacher.modules():
         if hasattr(module, "_backward_hooks"):
             module._backward_hooks = {}
         print('done')
     layer_teacher = getattr(teacher.model.model, '22')
+    layer_teacher.dfl.register_forward_hook(forward_hook_teacher)
+
+    print(get_shapes(outputs_teacher))
+    outputs_teacher = []
+
     criterion = YOLOKDLoss(teacher.model, lambda_kd=0.7, temperature=3.0)
 
-    print(layer_teacher)
-    layer_teacher.dfl.register_forward_hook(forward_hook_teacher)
     np.random.seed(args.seed)
     torch.cuda.set_device(args.gpu)
     cudnn.benchmark = True
