@@ -141,23 +141,23 @@ train_queue = torch.utils.data.DataLoader(train_data, batch_size=args.batch_size
 print(len(train_queue))
 # for name, layer in teacher.named_modules():
 #     print(name, layer)
-teacher = YOLO('yolov8n.yaml')
-layer_teacher = getattr(teacher.model.model, '22')
-layer_student = getattr(teacher.model.model, '22')
-layer_teacher.register_forward_hook(forward_hook_teacher)
-dummy = torch.rand(8,3,640,640)
-output1= teacher(dummy)
-# print(f'the output1 is {len(output1)}')
-# print(f'the output2 is {output2}')
-# print(f'the output3 is {output3}')
-print(outputs_teacher)
-print(get_shapes(outputs_teacher))
-output = outputs_teacher[0]
-output = output[0]
-print(f'the head output is {get_shapes(output[0])}')
-input = torch.rand(2,3,640,640)
-model = DummyYOLOStudent()
-print(model(input).shape)
+# teacher = YOLO('yolov8n.yaml')
+# layer_teacher = getattr(teacher.model.model, '22')
+# layer_student = getattr(teacher.model.model, '22')
+# layer_teacher.register_forward_hook(forward_hook_teacher)
+# dummy = torch.rand(8,3,640,640)
+# output1= teacher(dummy)
+# # print(f'the output1 is {len(output1)}')
+# # print(f'the output2 is {output2}')
+# # print(f'the output3 is {output3}')
+# print(outputs_teacher)
+# print(get_shapes(outputs_teacher))
+# output = outputs_teacher[0]
+# output = output[0]
+# print(f'the head output is {get_shapes(output[0])}')
+# input = torch.rand(2,3,640,640)
+# model = DummyYOLOStudent()
+# print(model(input).shape)
 
 # YOLO Loss Class
 # class YOLOKDLoss(nn.Module):
@@ -338,6 +338,7 @@ def train(train_queue, model, teacher, criterion, optimizer, args):
             output = output[0]
             output = output[0]
             print(f'trainers {output}')
+            output = output.unsqueeze(0)
             output = layer_teacher.postprocess(output.permute(0, 2, 1), 100, 6)
             print(f'postprocess {output}')
 
