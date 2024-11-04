@@ -144,12 +144,14 @@ def main():
         print(F.softmax(model.alphas_reduce, dim=-1))
 
         # training
-        train_acc, train_obj = train(train_queue, valid_queue, model, architect, criterion, optimizer, lr)
-        logging.info('train_acc %f', train_acc)
+        #train_acc, train_obj 
+        train_loss = train(train_queue, valid_queue, model, architect, criterion, optimizer, lr)
+        logging.info('loss %f',train_loss)
 
         # validation
-        valid_acc, valid_obj = infer(valid_queue, model, criterion)
-        logging.info('valid_acc %f', valid_acc)
+        #valid_acc, valid_obj 
+        valid_loss = infer(valid_queue, model, criterion)
+        logging.info('valid_loss %f', valid_loss)
 
         darts_utils.save(model, os.path.join(args.save, 'weights.pt'))
 
@@ -198,7 +200,7 @@ def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr):
            logging.info('train loss',step,loss)
             #logging.info('train %03d %e %f %f', step, objs.avg, top1.avg, top5.avg)
 
-    return top1.avg, objs.avg
+    return loss#top1.avg, objs.avg
 
 
 
@@ -225,7 +227,7 @@ def infer(valid_queue, model, criterion):
        logging.info('train loss',step,loss)
       #logging.info('valid %03d %e %f %f', step, objs.avg, top1.avg, top5.avg)
 
-  return top1.avg, objs.avg
+  return loss #top1.avg, objs.avg
 
 
 if __name__ == '__main__':
