@@ -277,7 +277,7 @@ def main():
             module._backward_hooks = {}
         print('done')
     layer_teacher = getattr(teacher.model.model, '22')
-    layer_teacher.dfl.register_forward_hook(forward_hook_teacher)
+    layer_teacher.register_forward_hook(forward_hook_teacher)
 
     teacher(input)
     print(get_shapes(outputs_teacher))
