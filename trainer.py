@@ -359,14 +359,14 @@ def train(train_queue, model, teacher, criterion, optimizer, args):
             print(f'postprocess {get_shapes(output)}')
 
         student_preds = model(input)
-        student_preds = format_for_v8_detection_loss(student_preds, num_classes=6, num_anchors=3)
-        print(f'student outputs: {get_shapes(student_preds)}')
+        student_predictions = format_for_v8_detection_loss(student_preds, num_classes=6, num_anchors=3)
+        print(f'student outputs: {get_shapes(student_predictions)}')
 
 
         student_bbox, student_class, student_obj = process_yolov8_output(student_preds)
 
         print('basics')
-        loss = criterion(student_preds, output, target)
+        loss = criterion(student_predictions, output, target)
         print('lossed')
         loss.backward()
         nn.utils.clip_grad_norm_(model.parameters(), args.grad_clip)
