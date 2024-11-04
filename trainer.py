@@ -320,6 +320,8 @@ def train(train_queue, model, teacher, criterion, optimizer, args):
     layer_teacher = getattr(teacher.model.model, '22')
 
     for step, (input, target) in enumerate(train_queue):
+        if step == 1:
+            continue
         input = Variable(input, requires_grad=False).cuda()
         target = {
             "batch_idx": Variable(target["batch_idx"], requires_grad=False).cuda(),
