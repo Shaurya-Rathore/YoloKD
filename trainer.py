@@ -139,20 +139,20 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 train_data = YOLOObjectDetectionDataset(img_dir=args.img_dir, label_dir=args.label_dir, classes=['sheep', 'cattle', 'seal', 'camelus', 'kiang', 'zebra'], transform=ultralytics.nn.modules.darts_utils._data_transforms_WAID_shaurya(args))
 train_queue = torch.utils.data.DataLoader(train_data, batch_size=args.batch_size, pin_memory=True, num_workers=2,collate_fn=custom_collate_fn)
 print(len(train_queue))
-# for name, layer in teacher.named_modules():
-#     print(name, layer)
-# teacher = YOLO('yolov8n.yaml')
-# layer_teacher = getattr(teacher.model.model, '22')
-# layer_student = getattr(teacher.model.model, '22')
-# layer_teacher.register_forward_hook(forward_hook_teacher)
-# dummy = torch.rand(8,3,640,640)
-# output1= teacher(dummy)
-# # print(f'the output1 is {len(output1)}')
-# # print(f'the output2 is {output2}')
-# # print(f'the output3 is {output3}')
-# output = outputs_teacher[0]
-# output = output[0]
-# print(f'the head output is {get_shapes(output[0])}')
+for name, layer in teacher.named_modules():
+    print(name, layer)
+teacher = YOLO('yolov8n.yaml')
+layer_teacher = getattr(teacher.model.model, '22')
+layer_student = getattr(teacher.model.model, '22')
+layer_teacher.register_forward_hook(forward_hook_teacher)
+dummy = torch.rand(8,3,640,640)
+output1= teacher(dummy)
+# print(f'the output1 is {len(output1)}')
+# print(f'the output2 is {output2}')
+# print(f'the output3 is {output3}')
+output = outputs_teacher[0]
+output = output[0]
+print(f'the head output is {get_shapes(output[0])}')
 input = torch.rand(2,3,640,640)
 model = DummyYOLOStudent()
 print(model(input).shape)
