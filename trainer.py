@@ -336,7 +336,6 @@ def train(train_queue, model, teacher, criterion, optimizer, args):
             print(f'trying for hook {outputs_teacher}')
             output = outputs_teacher[0]
             output = output[0]
-            output = output[0]
             print(f'trainers {output}')
             output = output.unsqueeze(0)
             output = layer_teacher.postprocess(output.permute(0, 2, 1), 100, 6)
