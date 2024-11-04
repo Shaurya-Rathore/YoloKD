@@ -338,6 +338,7 @@ def train(train_queue, model, teacher, criterion, optimizer, args):
             output = output[0]
             print(f'trainers {output}')
             output = output.unsqueeze(0)
+            print(f'the input to postprocess {output.shape}')
             output = layer_teacher.postprocess(output.permute(0, 2, 1), 100, 6)
             print(f'postprocess {output}')
 
