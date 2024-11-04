@@ -94,6 +94,7 @@ class DummyYOLOStudent(nn.Module):
         
         # Pass through the detection head
         x = self.head(x)
+        x = x.view(2,10,6400)
         
         # Split output into bbox, objectness, and class predictions
         # Assuming output format: [batch, num_anchors, num_classes + 5, H, W]
