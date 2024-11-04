@@ -357,7 +357,7 @@ def train(train_queue, model, teacher, criterion, optimizer, args):
         student_bbox, student_class, student_obj = process_yolov8_output(student_preds)
 
         print('basics')
-        loss = criterion(student_preds, teacher_output_final, target)
+        loss = criterion(student_preds, output, target)
         print('lossed')
         loss.backward()
         nn.utils.clip_grad_norm_(model.parameters(), args.grad_clip)
