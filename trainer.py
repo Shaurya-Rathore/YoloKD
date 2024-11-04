@@ -318,7 +318,12 @@ def train(train_queue, model, teacher, criterion, optimizer, args):
     layer_teacher = getattr(teacher.model.model, '22')
 
     for step, (input, target) in enumerate(train_queue):
-        input, target = input.cuda(), target.cuda()
+        input = Variable(input, requires_grad=False).cuda()
+        target = {
+            "batch_idx": Variable(target["batch_idx"], requires_grad=False).cuda(),
+            "cls": Variable(target["cls"], requires_grad=False).cuda(),
+            "bboxes": Variable(target["bboxes"], requires_grad=False).cuda(),
+        }
         optimizer.zero_grad()
 
         with torch.no_grad():
