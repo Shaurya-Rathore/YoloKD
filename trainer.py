@@ -269,6 +269,8 @@ def main():
 
     teacher.to(device)
     teacher.train(data='/kaggle/input/waiddataset/WAID-main/WAID-main/WAID/data.yaml', epochs=1, batch=8, optimizer= 'AdamW')
+    input = torch.rand(2,3,640,640)
+    print(get_shapes(teacher(input)))
     for module in teacher.modules():
         if hasattr(module, "_backward_hooks"):
             module._backward_hooks = {}
