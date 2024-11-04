@@ -41,7 +41,8 @@ class YOLOObjectDetectionDataset(Dataset):
                     class_labels.append(int(class_id))
 
         # Apply transformations
-        transformed = self.transform(image=image, bboxes=boxes, class_labels=class_labels)
+        transformed = self.transform(image)
+        print(transformed)
         image = transformed['image']
         boxes = transformed['bboxes']
         class_labels = transformed['class_labels']
