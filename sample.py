@@ -18,8 +18,8 @@ def test_network():
     # Create a sample input (batch_size=2, input_channels=3, height=224, width=224)
     batch_size = 2
     input_channels = 3
-    input_height = 224
-    input_width = 224
+    input_height = 32
+    input_width = 32
     x = torch.randn(batch_size, input_channels, input_height, input_width)  # CPU tensor
 
     # Forward pass through the model
