@@ -366,8 +366,7 @@ def train(train_queue, model, teacher, criterion, optimizer, args):
             teacher_output_final = teacher(input)
             print(f'trying for hook {get_shapes(outputs_teacher)}')
             output = outputs_teacher
-            print(f'the input to postprocess {output.shape}')
-            output = layer_teacher.postprocess(output.permute(0, 2, 1), 100, 6)
+            # output = layer_teacher.postprocess(output.permute(0, 2, 1), 100, 6)
             print(f'postprocess {get_shapes(output)}')
 
         student_preds = model(input)
