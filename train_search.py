@@ -188,7 +188,8 @@ def main():
                 optimizer, 
                 lr
             )
-        print(predforprint)
+        for i in predforprint:
+            print(i)
         logging.info(
                 'Training - Total Loss: %.4f | Box Loss: %.4f | Class Loss: %.4f | DFL Loss: %.4f',
                 train_total_loss,
@@ -215,6 +216,7 @@ def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr):
     box_loss_meter = darts_utils.AvgrageMeter()
     cls_loss_meter = darts_utils.AvgrageMeter()
     dfl_loss_meter = darts_utils.AvgrageMeter()
+    pred_list = []
     for step, (input, target) in enumerate(train_queue):
         initial_weights = check_weight_updates(model)
         model.train()
@@ -237,6 +239,7 @@ def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr):
             "bboxes": Variable(target_search["bboxes"], requires_grad=False).cuda(),
         }
         pred = model(input)
+        pred_list.append(pred)
         pred_search = model(input_search)
         
         # Architecture step
@@ -280,7 +283,7 @@ def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr):
             'box_loss': box_loss_meter.avg,
             'cls_loss': cls_loss_meter.avg,
             'dfl_loss': dfl_loss_meter.avg
-        },pred
+        },pred_list
     )
 
 
