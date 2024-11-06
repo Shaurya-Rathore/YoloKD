@@ -20,7 +20,7 @@ def test_network():
     input_channels = 3
     input_height = 32
     input_width = 32
-    x = torch.randn(batch_size, input_channels, input_height, input_width)  # CPU tensor
+    x = torch.randn(batch_size, input_channels, input_height, input_width,dtype=torch.half)  # CPU tensor
 
     # Forward pass through the model
     output = model(x)
