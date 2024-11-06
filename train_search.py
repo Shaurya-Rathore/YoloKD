@@ -189,7 +189,7 @@ def main():
                 lr
             )
         for i in predforprint:
-            logging.info(f'burrr {i}')
+            logging.info('Shape of i: %s', i.shape)
         logging.info(
                 'Training - Total Loss: %.4f | Box Loss: %.4f | Class Loss: %.4f | DFL Loss: %.4f',
                 train_total_loss,
