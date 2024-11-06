@@ -179,7 +179,7 @@ def main():
 
         # training
         #train_acc, train_obj 
-        train_total_loss, train_loss_dict = train(
+        train_total_loss, train_loss_dict,pred = train(
                 train_queue, 
                 valid_queue, 
                 model, 
@@ -188,7 +188,7 @@ def main():
                 optimizer, 
                 lr
             )
-            
+        print(pred)
         logging.info(
                 'Training - Total Loss: %.4f | Box Loss: %.4f | Class Loss: %.4f | DFL Loss: %.4f',
                 train_total_loss,
@@ -200,7 +200,7 @@ def main():
          # Validation
         valid_total_loss, valid_loss_dict = infer(valid_queue, model, criterion)
         logging.info(
-                'Training - Total Loss: %.4f | Box Loss: %.4f | Class Loss: %.4f | DFL Loss: %.4f',
+                'Validating - Total Loss: %.4f | Box Loss: %.4f | Class Loss: %.4f | DFL Loss: %.4f',
                 valid_total_loss,
                 valid_loss_dict['box_loss'],
                 valid_loss_dict['cls_loss'],
@@ -280,7 +280,7 @@ def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr):
             'box_loss': box_loss_meter.avg,
             'cls_loss': cls_loss_meter.avg,
             'dfl_loss': dfl_loss_meter.avg
-        }
+        },pred
     )
 
 
