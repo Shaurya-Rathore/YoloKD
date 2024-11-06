@@ -151,6 +151,7 @@ def main():
   train_queue = torch.utils.data.DataLoader(
       train_data, batch_size=args.batch_size,
       pin_memory=True, num_workers=2,collate_fn=custom_collate_fn)
+  logging.info('length %s', len(train_queue))
   
   val_transform = darts_utils._val_data_transforms_WAID(args)
   valid_data = YOLOObjectDetectionDataset(img_dir = args.val_img_dir,label_dir=args.val_label_dir,classes = classes,transform=val_transform)
@@ -238,7 +239,10 @@ def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr):
             "bboxes": Variable(target_search["bboxes"], requires_grad=False).cuda(),
         }
         pred = model(input)
+        print("PRED: ", pred)
         pred_list.append(pred)
+        print("Length of pred_list: ", len(pred_list))
+        print(pred_list)
         pred_search = model(input_search)
         
         # Architecture step
