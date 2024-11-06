@@ -164,7 +164,7 @@ class Cell(nn.Module):
 
     final_output = torch.cat(states[-self._multiplier:], dim=1)
     
-    print(f"Final concatenated state shape: {final_output.shape}")
+    #print(f"Final concatenated state shape: {final_output.shape}")
     return final_output
 
 class Network(nn.Module):
@@ -563,7 +563,7 @@ class Detect(nn.Module):
                 dimension format [x, y, w, h, max_class_prob, class_index].
         """
         batch_size, anchors, predictions = preds.shape  # i.e. shape(16,8400,84)
-        print("anchorr",anchors)
+        #print("anchorr",anchors)
         boxes, scores = preds.split([4, nc], dim=-1)
         index = scores.amax(dim=-1).topk(min(max_det, anchors))[1].unsqueeze(-1)
         boxes = boxes.gather(dim=1, index=index.repeat(1, 1, 4))

@@ -90,7 +90,7 @@ def check_gradients(model):
             if param.grad is not None:
                 if param.grad.abs().sum() > 0:
                     has_gradients = True
-                    print(f"Parameter {name} has non-zero gradients")
+                    #print(f"Parameter {name} has non-zero gradients")
                     break
     if not has_gradients:
         print("WARNING: No gradients are flowing!")
@@ -109,7 +109,7 @@ def compare_weights(model, initial_weights):
     for name, param in model.named_parameters():
         if param.requires_grad:
             if not torch.equal(initial_weights[name], param.data):
-                print(f"Weights changed for {name}")
+                #print(f"Weights changed for {name}")
                 changed = True
                 break
     if not changed:
@@ -239,10 +239,10 @@ def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr):
             "bboxes": Variable(target_search["bboxes"], requires_grad=False).cuda(),
         }
         pred = model(input)
-        print("PRED: ", pred)
+        #print("PRED: ", pred)
         pred_list.append(pred)
-        print("Length of pred_list: ", len(pred_list))
-        print(pred_list)
+        #print("Length of pred_list: ", len(pred_list))
+        #print(pred_list)
         pred_search = model(input_search)
         
         # Architecture step
@@ -250,8 +250,8 @@ def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr):
         # Optimization step
         optimizer.zero_grad()
 
-        print(f"Predictions: {pred}")
-        print(f"Target: {target}")
+        #print(f"Predictions: {pred}")
+        #print(f"Target: {target}")
 
         total_loss, loss_items = criterion(pred, target)
         total_loss.backward()
