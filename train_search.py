@@ -190,8 +190,7 @@ def main():
             )
             
         logging.info(
-                # 'Training - Total Loss: %.4f | Box Loss: %.4f | Class Loss: %.4f | DFL Loss: %.4f',
-                'Training - Total Loss:  | Box Loss:  | Class Loss:  | DFL Loss: ',
+                'Training - Total Loss: %.4f | Box Loss: %.4f | Class Loss: %.4f | DFL Loss: %.4f',
                 train_total_loss,
                 train_loss_dict['box_loss'],
                 train_loss_dict['cls_loss'],
@@ -201,7 +200,7 @@ def main():
          # Validation
         valid_total_loss, valid_loss_dict = infer(valid_queue, model, criterion)
         logging.info(
-                'Validation - Total Loss:  | Box Loss:  | Class Loss:  | DFL Loss: ',
+                'Training - Total Loss: %.4f | Box Loss: %.4f | Class Loss: %.4f | DFL Loss: %.4f',
                 valid_total_loss,
                 valid_loss_dict['box_loss'],
                 valid_loss_dict['cls_loss'],
