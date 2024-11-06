@@ -188,10 +188,9 @@ def main():
                 optimizer, 
                 lr
             )
-        for i in predforprint:
-            logging.info('Shape of i: %s', i.shape)
+        logging.info('My list: %s', predforprint)
         logging.info(
-                'Training - Total Loss: %.4f | Box Loss: %.4f | Class Loss: %.4f | DFL Loss: %.4f',
+                'Training - Total Loss: %.10f | Box Loss: %.10f | Class Loss: %.10f | DFL Loss: %.10f',
                 train_total_loss,
                 train_loss_dict['box_loss'],
                 train_loss_dict['cls_loss'],
@@ -201,7 +200,7 @@ def main():
          # Validation
         valid_total_loss, valid_loss_dict = infer(valid_queue, model, criterion)
         logging.info(
-                'Validating - Total Loss: %.4f | Box Loss: %.4f | Class Loss: %.4f | DFL Loss: %.4f',
+                'Validating - Total Loss: %.10f | Box Loss: %.10f | Class Loss: %.10f | DFL Loss: %.10f',
                 valid_total_loss,
                 valid_loss_dict['box_loss'],
                 valid_loss_dict['cls_loss'],
