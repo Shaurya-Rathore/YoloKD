@@ -3,14 +3,12 @@ import torch
 from torch.utils.data import Dataset
 from torchvision.transforms import transforms
 from PIL import Image
+from torch.nn.utils.rnn import pad_sequence
 import numpy as np
 import glob
-from torch.nn.utils.rnn import pad_sequence
-import os
-import torch
-from torch.utils.data import Dataset
-from PIL import Image
-import numpy as np
+
+import albumentations as A
+from albumentations.pytorch import ToTensorV2
 
 class YOLOObjectDetectionDataset(Dataset):
     def __init__(self, img_dir, label_dir, classes, transform=None):
@@ -56,6 +54,12 @@ class YOLOObjectDetectionDataset(Dataset):
         }
 
         return image, target
+    
+    def __len__(self):
+        return len(self.image_paths)
+
+    def get_class_name(self, class_id):
+        return self.classes[class_id]
 
 def custom_collate_fn(batch):
     images, targets = zip(*batch)  # Separate images and targets
