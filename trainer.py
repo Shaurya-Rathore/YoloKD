@@ -70,25 +70,37 @@ def remove_all_backward_hooks(model):
                 hook.remove()  # Remove the hook using its handle
     
 class DummyYOLOStudent(nn.Module):
-    def __init__(self):
+    def __init__(self, num_classes=80, reg_max=16):
         super(DummyYOLOStudent, self).__init__()
-        # Define convolutional layers
+        # Define convolutional layers (simplified)
         self.conv1 = nn.Conv2d(3, 16, kernel_size=3, stride=2, padding=1)  # Output: (16, 320, 320)
         self.conv2 = nn.Conv2d(16, 32, kernel_size=3, stride=2, padding=1)  # Output: (32, 160, 160)
+        self.conv3 = nn.Conv2d(32, 64, kernel_size=3, stride=2, padding=1)  # Output: (64, 80, 80)
+        self.conv4 = nn.Conv2d(64, 128, kernel_size=3, stride=2, padding=1) # Output: (128, 40, 40)
         
-        # Define pooling and fully connected layers
-        self.pool = nn.AdaptiveAvgPool2d((100, 6))  # Output: (32, 100, 6)
-        self.fc = nn.Linear(32, 2)  # Output: (2,)
-    
-    def forward(self, x):
-        features1 = self.conv1(x)  # Shape: (batch_size, 16, 320, 320)
-        features2 = self.conv2(features1)  # Shape: (batch_size, 32, 160, 160)
-        pooled_features = self.pool(features2)  # Shape: (batch_size, 32, 100, 6)
-        output = self.fc(pooled_features.mean(dim=(2, 3)))  # Shape: (batch_size, 2)
+        # Detection head (simplified)
+        self.detect = nn.Conv2d(128, num_classes + 4 * reg_max, kernel_size=1)  # Output: (num_classes + 4*reg_max, 40, 40)
         
-        # Return a tuple containing all relevant features and outputs
-        return (features1, features2, pooled_features, output)
+        # Optional: Projection layer to match teacher's feature channels
+        # Assume teacher has 256 channels in the last feature map
+        self.proj = nn.Conv2d(128, 256, kernel_size=1)  # Align channels if necessary
 
+    def forward(self, x):
+        features1 = self.conv1(x)  # (16, 320, 320)
+        features2 = self.conv2(features1)  # (32, 160, 160)
+        features3 = self.conv3(features2)  # (64, 80, 80)
+        features4 = self.conv4(features3)  # (128, 40, 40)
+        
+        # Optionally align channels
+        aligned_features4 = self.proj(features4)  # (256, 40, 40)
+        
+        # Detection predictions
+        predictions = self.detect(aligned_features4)  # (num_classes + 4*reg_max, 40, 40)
+        
+        # Aggregate feature maps
+        features = [features1, features2, features3, aligned_features4]
+        
+        return (features, predictions)
 
 
 # Argument Parsing
@@ -207,21 +219,48 @@ class YOLOKDLoss(nn.Module):
         self.kldiv = nn.KLDivLoss(reduction='batchmean')
 
     def forward(self, student_preds, teacher_preds, batch):
+        """
+        Args:
+            student_preds (tuple): (features, predictions) from the student model
+            teacher_preds (tuple): (features, predictions) from the teacher model
+            batch (dict): Batch data containing 'batch_idx', 'cls', 'bboxes'
+        Returns:
+            total_loss (torch.Tensor): Combined loss value
+        """
         # Compute the standard loss using v8DetectionLoss (hard labels)
         hard_loss_value, hard_loss_components = self.hard_loss(student_preds, batch)
 
         # Process student and teacher predictions
-        # Assuming student_preds and teacher_preds are tuples
-        # Extract the last element of the tuple which is the prediction tensor
-        student_pred_scores = student_preds[-1]  # Shape: (batch_size, 2)
-        teacher_pred_scores = teacher_preds[-1]  # Shape: (batch_size, 2)
+        # Both are tuples: (features, predictions)
+        student_features, student_output = student_preds
+        teacher_features, teacher_output = teacher_preds
 
-        # Apply softmax with temperature scaling
-        soft_teacher_preds = F.softmax(teacher_pred_scores / self.temperature, dim=-1)
-        soft_student_preds = F.log_softmax(student_pred_scores / self.temperature, dim=-1)
+        # Flatten the predictions for KD
+        # Assuming predictions are of shape (batch_size, num_classes + 4*reg_max, H, W)
+        # Reshape to (batch_size, num_predictions, num_classes + 4*reg_max)
+        batch_size = student_output.size(0)
+        num_predictions = student_output.size(2) * student_output.size(3)
+        student_pred_scores = student_output.permute(0, 2, 3, 1).reshape(batch_size, num_predictions, -1)
+        teacher_pred_scores = teacher_output.permute(0, 2, 3, 1).reshape(batch_size, num_predictions, -1)
+
+        # Apply softmax with temperature scaling on classification logits
+        # Assuming that the first 'num_classes' entries correspond to classification
+        num_classes = self.hard_loss.nc
+        student_cls = student_pred_scores[:, :, :num_classes]
+        teacher_cls = teacher_pred_scores[:, :, :num_classes]
+
+        # Knowledge Distillation on classification logits
+        soft_teacher_cls = F.softmax(teacher_cls / self.temperature, dim=-1)
+        soft_student_cls = F.log_softmax(student_cls / self.temperature, dim=-1)
 
         # Compute KD loss using KL divergence
-        kd_loss = self.kldiv(soft_student_preds, soft_teacher_preds) * (self.temperature ** 2)
+        kd_loss_cls = self.kldiv(soft_student_cls, soft_teacher_cls) * (self.temperature ** 2)
+
+        # Optionally, perform KD on regression or other components
+        # For simplicity, we're focusing on classification logits
+
+        # Total KD loss
+        kd_loss = kd_loss_cls
 
         # Total loss
         total_loss = hard_loss_value + self.lambda_kd * kd_loss
@@ -326,9 +365,7 @@ def train(train_queue, model, teacher, criterion, optimizer, args):
             outputs_teacher.clear()
             teacher_output_final = teacher(input)
             print(f'trying for hook {get_shapes(outputs_teacher)}')
-            output = outputs_teacher[1:]
-            output = output[1:]
-            print(f'trainers {output}')
+            output = outputs_teacher
             print(f'the input to postprocess {output.shape}')
             output = layer_teacher.postprocess(output.permute(0, 2, 1), 100, 6)
             print(f'postprocess {get_shapes(output)}')
