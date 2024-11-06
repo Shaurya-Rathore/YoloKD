@@ -174,8 +174,8 @@ def main():
         genotype = model.genotype()
         logging.info('genotype = %s', genotype)
 
-        print(f"alphas_normal: {F.softmax(model.alphas_normal, dim=-1)}")
-        print(f"alphas_reduce: {F.softmax(model.alphas_reduce, dim=-1)}")
+        # print(f"alphas_normal: {F.softmax(model.alphas_normal, dim=-1)}")
+        # print(f"alphas_reduce: {F.softmax(model.alphas_reduce, dim=-1)}")
 
         # training
         #train_acc, train_obj 
@@ -244,22 +244,12 @@ def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr):
         # Optimization step
         optimizer.zero_grad()
 
-
-        {k: v.shape for k, v in target.items()}
-        print(f"Model output shape: {[p.shape for p in pred]}")
-        print(f"Target shapes: {target.shape}")
-        print(f"Sample pred values: {[p.mean().item() for p in pred]}")
-        print(f"Sample target values: {{k: v.mean().item() if torch.is_tensor(v) else v for k, v in target.items()}}")
-
+        print(f"Predictions: {pred}")
+        print(f"Target: {target}")
 
         total_loss, loss_items = criterion(pred, target)
         total_loss.backward()
 
-        print("Loss components:", loss_items)
-        print("Total loss value:", total_loss.item())
-
-        print("Loss components:", loss_items)
-        print("Total loss value:", total_loss.item())
 
         # Gradient clipping
         if args.grad_clip:
