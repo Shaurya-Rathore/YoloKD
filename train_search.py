@@ -179,7 +179,7 @@ def main():
 
         # training
         #train_acc, train_obj 
-        train_total_loss, train_loss_dict,pred = train(
+        train_total_loss, train_loss_dict,predforprint = train(
                 train_queue, 
                 valid_queue, 
                 model, 
@@ -188,7 +188,7 @@ def main():
                 optimizer, 
                 lr
             )
-        print(pred)
+        print(predforprint)
         logging.info(
                 'Training - Total Loss: %.4f | Box Loss: %.4f | Class Loss: %.4f | DFL Loss: %.4f',
                 train_total_loss,
