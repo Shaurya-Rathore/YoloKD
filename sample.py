@@ -5,43 +5,37 @@ from darts_utils import process_yolov8_output
 
 def test_network():
     # Define hyperparameters
-    C = 16  # Initial number of channels
+    C = 64  # Initial number of channels
     num_classes = 6  # Number of output classes
-    layers = 8  # Number of layers in the network
-    #criterion = YOLOLoss  # Loss function
+    layers = 14  # Number of layers in the network
+    steps = 4  # Number of steps per DARTS cell
+    multiplier = 4  # Multiplier for channels in DARTS cells
+    stem_multiplier = 3  # Multiplier for channels in the stem layer
 
     # Create the network (CPU only)
-    model = YOLOv8StudentModel(num_classes, C=64, layers=14, steps=4, multiplier=4, stem_multiplier=3)
+    model = YOLOv8StudentModel(num_classes, C=C, layers=layers, steps=steps, multiplier=multiplier, stem_multiplier=stem_multiplier)
 
-    # Create a sample input (batch_size=2, input_channels=3, height=32, width=32)
+    # Create a sample input (batch_size=2, input_channels=3, height=224, width=224)
     batch_size = 2
     input_channels = 3
-    input_height = 32
-    input_width = 32
+    input_height = 224
+    input_width = 224
     x = torch.randn(batch_size, input_channels, input_height, input_width)  # CPU tensor
 
-    # Create sample labels
-    labels = torch.randint(0, num_classes, (batch_size,))  # CPU tensor
+    # Forward pass through the model
+    output = model(x)
+    print(output.size())
 
-    bbox_preds = model(x) 
-         # Unpack the tuple returned by forward()
-    #print(f"Output shape: {logits.shape}"
-    
-    for tensor in bbox_preds:
-        print(tensor)
-        #dbox,cls = process_yolov8_output(tensor)
-    #shape = bbox_preds[0].shape
-    #bbox_preds = torch.cat([xi.view(shape[0], num_classes + 16, -1) for xi in bbox_preds], 2)
-    #dbox = bbox_preds[:, : 16]
-    #cls = bbox_preds[:, 16 :]
-    #print("bbox",bbox_preds) 
-    print("dbox",dbox.size()) 
-    print("cls",cls.size()) 
-    #print("obj",obj.size())
-    input = (dbox,cls)
+    # Process the output
+    pred_bbox, pred_cls, pred_obj = process_yolov8_output(output, num_classes=num_classes, reg_max=4)
+
+    # Print the shapes of the predictions
+    print(f"Predicted Bounding Boxes: {pred_bbox.shape}")
+    print(f"Predicted Class Probabilities: {pred_cls.shape}")
+    print(f"Predicted Objectness Scores: {pred_obj.shape}")
 
     # Calculate loss
-    loss = model._loss(cls, labels)
+    loss = model._loss(output, x)
     print(f"Loss: {loss.item()}")
 
     # Print the genotype

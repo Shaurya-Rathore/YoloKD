@@ -244,10 +244,12 @@ def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr):
         # Optimization step
         optimizer.zero_grad()
 
-        print("Model output shape:", [p.shape for p in pred])
-        print("Target shapes:", {k: v.shape for k, v in target.items()})
-        print("Sample pred values:", [p.mean().item() for p in pred])
-        print("Sample target values:", {k: v.mean().item() if torch.is_tensor(v) else v for k, v in target.items()})
+
+        {k: v.shape for k, v in target.items()}
+        print(f"Model output shape: {[p.shape for p in pred]}")
+        print(f"Target shapes: {target.shape}")
+        print(f"Sample pred values: {[p.mean().item() for p in pred]}")
+        print(f"Sample target values: {{k: v.mean().item() if torch.is_tensor(v) else v for k, v in target.items()}}")
 
 
         total_loss, loss_items = criterion(pred, target)
