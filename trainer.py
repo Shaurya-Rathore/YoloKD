@@ -72,18 +72,22 @@ def remove_all_backward_hooks(model):
 class DummyYOLOStudent(nn.Module):
     def __init__(self):
         super(DummyYOLOStudent, self).__init__()
-        # A simple CNN layer to reduce the spatial dimensions, adjust as needed
-        self.conv = nn.Conv2d(3, 16, kernel_size=3, stride=2, padding=1)  # Reduces size to 16 x 320 x 320
-        self.pool = nn.AdaptiveAvgPool2d((100, 6))  # Pool to desired output dimensions (100, 6) in height and width
-        self.fc = nn.Linear(16, 2)  # Final output channels to match 2 classes or types
-
+        # Define convolutional layers
+        self.conv1 = nn.Conv2d(3, 16, kernel_size=3, stride=2, padding=1)  # Output: (16, 320, 320)
+        self.conv2 = nn.Conv2d(16, 32, kernel_size=3, stride=2, padding=1)  # Output: (32, 160, 160)
+        
+        # Define pooling and fully connected layers
+        self.pool = nn.AdaptiveAvgPool2d((100, 6))  # Output: (32, 100, 6)
+        self.fc = nn.Linear(32, 2)  # Output: (2,)
+    
     def forward(self, x):
-        x = self.conv(x)  # Shape (batch_size, 16, 320, 320)
-        x = self.pool(x)  # Shape (batch_size, 16, 100, 6)
-        x = x.permute(0, 2, 3, 1)  # Shape (batch_size, 100, 6, 16)
-        x = self.fc(x)  # Shape (batch_size, 100, 6, 2)
-        x = x.permute(0, 3, 1, 2)  # Shape (batch_size, 2, 100, 6)
-        return x
+        features1 = self.conv1(x)  # Shape: (batch_size, 16, 320, 320)
+        features2 = self.conv2(features1)  # Shape: (batch_size, 32, 160, 160)
+        pooled_features = self.pool(features2)  # Shape: (batch_size, 32, 100, 6)
+        output = self.fc(pooled_features.mean(dim=(2, 3)))  # Shape: (batch_size, 2)
+        
+        # Return a tuple containing all relevant features and outputs
+        return (features1, features2, pooled_features, output)
 
 
 
