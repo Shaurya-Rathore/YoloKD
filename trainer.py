@@ -70,41 +70,21 @@ def remove_all_backward_hooks(model):
                 hook.remove()  # Remove the hook using its handle
     
 class DummyYOLOStudent(nn.Module):
-    def __init__(self, num_classes=6):
+    def __init__(self):
         super(DummyYOLOStudent, self).__init__()
-        
-        # Backbone: A simple CNN with three blocks
-        self.backbone = nn.Sequential(
-            nn.Conv2d(3, 16, kernel_size=3, stride=1, padding=1),
-            nn.BatchNorm2d(16),
-            nn.ReLU(),
-            nn.MaxPool2d(kernel_size=2, stride=2),  # Downsample by 2
-            
-            nn.Conv2d(16, 32, kernel_size=3, stride=1, padding=1),
-            nn.BatchNorm2d(32),
-            nn.ReLU(),
-            nn.MaxPool2d(kernel_size=2, stride=2),  # Downsample by 2
-            
-            nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=1),
-            nn.BatchNorm2d(64),
-            nn.ReLU(),
-            nn.MaxPool2d(kernel_size=2, stride=2)   # Downsample by 2
-        )
-        
-        # Detection heads for P3, P4, P5 scales
-        self.head_p3 = nn.Conv2d(64, 3 * (num_classes + 5), kernel_size=1)
-        self.head_p4 = nn.Conv2d(64, 3 * (num_classes + 5), kernel_size=1)
-        self.head_p5 = nn.Conv2d(64, 3 * (num_classes + 5), kernel_size=1)
+        # A simple CNN layer to reduce the spatial dimensions, adjust as needed
+        self.conv = nn.Conv2d(3, 16, kernel_size=3, stride=2, padding=1)  # Reduces size to 16 x 320 x 320
+        self.pool = nn.AdaptiveAvgPool2d((100, 6))  # Pool to desired output dimensions (100, 6) in height and width
+        self.fc = nn.Linear(16, 2)  # Final output channels to match 2 classes or types
 
     def forward(self, x):
-        features = self.backbone(x)
-        
-        # Generate predictions at different scales
-        pred_p3 = self.head_p3(features)
-        pred_p4 = self.head_p4(features)
-        pred_p5 = self.head_p5(features)
-        
-        return [pred_p3, pred_p4, pred_p5]
+        x = self.conv(x)  # Shape (batch_size, 16, 320, 320)
+        x = self.pool(x)  # Shape (batch_size, 16, 100, 6)
+        x = x.permute(0, 2, 3, 1)  # Shape (batch_size, 100, 6, 16)
+        x = self.fc(x)  # Shape (batch_size, 100, 6, 2)
+        x = x.permute(0, 3, 1, 2)  # Shape (batch_size, 2, 100, 6)
+        return x
+
 
 
 # Argument Parsing
