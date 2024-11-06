@@ -14,7 +14,7 @@ def test_network():
 
     # Create the network (CPU only)
     model = YOLOv8StudentModel(num_classes, C=C, layers=layers, steps=steps, multiplier=multiplier, stem_multiplier=stem_multiplier)
-
+    model.half()
     # Create a sample input (batch_size=2, input_channels=3, height=224, width=224)
     batch_size = 2
     input_channels = 3
