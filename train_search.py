@@ -19,7 +19,7 @@ from torch.autograd import Variable
 from model_search import YOLOv8StudentModel
 from architect import Architect
 from dataloader import YOLOObjectDetectionDataset,custom_collate_fn
-from torch.cuda.amp import autocast
+from torch.amp import autocast
 
 
 parser = argparse.ArgumentParser("WAID")
@@ -162,10 +162,10 @@ def main():
         optimizer, float(args.epochs), eta_min=args.learning_rate_min)
 
   architect = Architect(model, args)
-  scaler = torch.cuda.amp.GradScaler()  # For mixed precision training
+  scaler = torch.amp.GradScaler('cuda')  # For mixed precision training
   best_loss = float('inf')
 
-  with autocast(enabled=True):
+  with autocast(device_type='cuda'):
     for epoch in range(args.epochs):
         scheduler.step()
         lr = scheduler.get_lr()[0]
@@ -174,8 +174,8 @@ def main():
         genotype = model.genotype()
         logging.info('genotype = %s', genotype)
 
-        print(F.softmax(model.alphas_normal, dim=-1))
-        print(F.softmax(model.alphas_reduce, dim=-1))
+        print(f"alphas_normal: {F.softmax(model.alphas_normal, dim=-1)}")
+        print(f"alphas_reduce: {F.softmax(model.alphas_reduce, dim=-1)}")
 
         # training
         #train_acc, train_obj 
@@ -316,7 +316,7 @@ def infer(valid_queue, model, criterion):
           }
           
           # Forward pass
-          with autocast(enabled=True):  # Use mixed precision
+          with autocast(device_type='cuda', enabled=True):  # Use mixed precision
               pred = model(input)
               total_loss, loss_items = criterion(pred, target)
               
