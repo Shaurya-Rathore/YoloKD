@@ -207,9 +207,10 @@ class YOLOKDLoss(nn.Module):
         hard_loss_value, hard_loss_components = self.hard_loss(student_preds, batch)
 
         # Process student and teacher predictions
-        # Since student_preds and teacher_preds are tensors of shape (2, 100, 6)
-        student_pred_scores = student_preds.view(student_preds.size(0), -1)  # Shape: (2, 600)
-        teacher_pred_scores = teacher_preds.view(teacher_preds.size(0), -1)  # Shape: (2, 600)
+        # Assuming student_preds and teacher_preds are tuples
+        # Extract the last element of the tuple which is the prediction tensor
+        student_pred_scores = student_preds[-1]  # Shape: (batch_size, 2)
+        teacher_pred_scores = teacher_preds[-1]  # Shape: (batch_size, 2)
 
         # Apply softmax with temperature scaling
         soft_teacher_preds = F.softmax(teacher_pred_scores / self.temperature, dim=-1)
@@ -321,8 +322,8 @@ def train(train_queue, model, teacher, criterion, optimizer, args):
             outputs_teacher.clear()
             teacher_output_final = teacher(input)
             print(f'trying for hook {get_shapes(outputs_teacher)}')
-            output = outputs_teacher[0]
-            output = output[0]
+            output = outputs_teacher[1:]
+            output = output[1:]
             print(f'trainers {output}')
             print(f'the input to postprocess {output.shape}')
             output = layer_teacher.postprocess(output.permute(0, 2, 1), 100, 6)
