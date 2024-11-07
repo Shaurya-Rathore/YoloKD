@@ -406,7 +406,7 @@ class NeckFPN(nn.Module):
         # Step 1: Adjust channels for C4 (75x75)
         with autocast(device_type = "cuda"):
           c4 = c4.to(torch.float16)
-          #c3 = c3.to(torch.float16)
+          c3 = c3.to(torch.float16)
           c2 = c2.to(torch.float16)
           c4_out = self.conv_c4(c4)  # Adjust channels for C4: (75x75 -> 256 channels)
 

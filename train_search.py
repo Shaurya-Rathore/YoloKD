@@ -36,7 +36,7 @@ parser.add_argument('--report_freq', type=float, default=10, help='report freque
 parser.add_argument('--gpu', type=int, default=0, help='gpu device id')
 parser.add_argument('--epochs', type=int, default=10, help='number of training epochs')
 parser.add_argument('--init_channels', type=int, default=8, help='number of initial channels')
-parser.add_argument('--layers', type=int, default=7, help='total number of layers')
+parser.add_argument('--layers', type=int, default=14, help='total number of layers')
 parser.add_argument('--model_path', type=str, default='saved_models', help='path to save the model')
 parser.add_argument('--cutout', action='store_true', default=False, help='use cutout')
 parser.add_argument('--cutout_length', type=int, default=16, help='cutout length')
