@@ -1,5 +1,6 @@
 from ultralytics.models.yolo import YOLO
 from ultralytics import YOLO
+from ultralytics import NAS
 from ultralytics.engine.model import Model
 import torch
 import wandb
