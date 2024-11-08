@@ -10,7 +10,8 @@ import time
 # from ultralytics.nn.modules.block import DFL
 from ultralytics.utils.loss import v8DetectionLoss
 from operations import *
-from torch.amp import autocast, GradScaler
+from torch.amp import autocast
+from torch.cuda.amp import GradScaler
 
 from genotypes import PRIMITIVES
 from genotypes import Genotype
@@ -271,7 +272,7 @@ class Network(nn.Module):
     return genotype
 
 class DARTSBackbone(nn.Module):
-  def __init__(self, C, layers, steps=4, multiplier=4, stem_multiplier=3):
+  def __init__(self, C, layers=7, steps=4, multiplier=4, stem_multiplier=3):
     super(DARTSBackbone, self).__init__()
     
     # Assign backbone parameters
@@ -293,21 +294,18 @@ class DARTSBackbone(nn.Module):
     self.cells = nn.ModuleList()
     reduction_prev = False
     
-    self.cell6_index = 5   # Index for the 6th cell
-    self.cell10_index = 9  # Index for the 10th cell
-    
+    # Configure 7 cells with a single reduction cell at the 4th cell (index 3)
     for i in range(layers):
-      if i in [3, 7, 11]:  # Reduction cells at 3rd, 7th, and 11th cells
-        C_curr *= 2
-        reduction = True
-      else:
-        reduction = False
-      
-      cell = Cell(steps, multiplier, C_prev_prev, C_prev, C_curr, reduction, reduction_prev)
-      self.cells.append(cell)
-      
-      reduction_prev = reduction
-      C_prev_prev, C_prev = C_prev, multiplier * C_curr  # Update for next cell
+        if i == 3:  # 4th cell will be a reduction cell
+            C_curr *= 2
+            reduction = True
+        else:
+            reduction = False
+        
+        cell = Cell(steps, multiplier, C_prev_prev, C_prev, C_curr, reduction, reduction_prev)
+        self.cells.append(cell)
+        reduction_prev = reduction
+        C_prev_prev, C_prev = C_prev, multiplier * C_curr  # Update channels
     
     # Initialize architecture parameters (alphas)
     self._initialize_alphas()
@@ -331,21 +329,19 @@ class DARTSBackbone(nn.Module):
     # Use autocast for mixed precision
     with autocast(device_type = "cuda"):
       s0 = s1 = self.stem(x)
-      C2, C3 = None, None  # Capture outputs from the 6th and 10th cells
+      C2, C3 = None, None  # Feature maps to capture
 
-      for i, cell in enumerate(self.cells):
+    for i, cell in enumerate(self.cells):
         # Apply weights based on the type of cell
-        if cell.reduction:
-          weights = F.softmax(self.alphas_reduce, dim=-1)
-        else:
-          weights = F.softmax(self.alphas_normal, dim=-1)
-
+        weights = F.softmax(self.alphas_reduce, dim=-1) if cell.reduction else F.softmax(self.alphas_normal, dim=-1)
+        
         s0, s1 = s1, cell(s0, s1, weights)  # Forward pass through each cell
 
-        if i == self.cell6_index:
-          C2 = s1  # Output from the 6th cell
-        if i == self.cell10_index:
-          C3 = s1  # Output from the 10th cell
+        # Capture intermediate feature maps at specified cells
+        if i == 1:  # 2nd cell output
+            C2 = s1
+        elif i == 4:  # 5th cell output (after the reduction cell)
+            C3 = s1
 
     C4 = s1  # Final output from the backbone
 
@@ -379,57 +375,37 @@ class DARTSBackbone(nn.Module):
     return loss.item()
 
 
-class NeckFPN(nn.Module):
+class SimpleNeck(nn.Module):
     def __init__(self, in_channels):
-        super(NeckFPN, self).__init__()
+        super(SimpleNeck, self).__init__()
 
-        # Define convolutions to adjust the channel dimensions for each feature map
-        self.conv_c4 = nn.Conv2d(in_channels[2], 256, kernel_size=1)  # C4 (75x75), reduce channels to 256
-        self.conv_c3 = nn.Conv2d(in_channels[1], 256, kernel_size=1)  # C3 (150x150), reduce channels to 256
-        self.conv_c2 = nn.Conv2d(in_channels[0], 256, kernel_size=1)  # C2 (300x300), reduce channels to 256
-        self.conv_c4 = self.conv_c4.to(torch.float16)
-        self.conv_c3 = self.conv_c3.to(torch.float16)
-        self.conv_c2 = self.conv_c2.to(torch.float16)
+        # 1x1 Convs to align channels
+        self.conv_c4 = nn.Conv2d(in_channels[2], 128, kernel_size=1)
+        self.conv_c3 = nn.Conv2d(in_channels[1], 128, kernel_size=1)
+        self.conv_c2 = nn.Conv2d(in_channels[0], 128, kernel_size=1)
+
         # Final 3x3 convolutions after feature map fusion
-        self.final_c2 = nn.Conv2d(256, 256, kernel_size=3, padding=1)  # Final C2 (300x300)
-        self.final_c3 = nn.Conv2d(256, 256, kernel_size=3, padding=1)  # Final C3 (150x150)
-        self.final_c4 = nn.Conv2d(256, 256, kernel_size=3, padding=1)  # Final C4 (75x75)
-        self.final_c2 = self.final_c2.to(torch.float16)
-        self.final_c3 = self.final_c3.to(torch.float16)
-        self.final_c4 = self.final_c4.to(torch.float16)
+        self.final_fused_conv = nn.Conv2d(128, 128, kernel_size=3, padding=1)
 
     def forward(self, c2, c3, c4):
-        # c2: 300x300 from the 6th backbone cell (shallower, high-resolution, fewer channels)
-        # c3: 150x150 from the 10th backbone cell (mid-level)
-        # c4: 75x75 from the final backbone cell (deepest, lowest resolution, most channels)
 
-        # Step 1: Adjust channels for C4 (75x75)
-        with autocast(device_type = "cuda"):
-          c4 = c4.to(torch.float16)
-          #c3 = c3.to(torch.float16)
-          c2 = c2.to(torch.float16)
-          c4_out = self.conv_c4(c4)  # Adjust channels for C4: (75x75 -> 256 channels)
+        # Step 1: Fuse C4 (upsampled) with C3
+        c4_upsampled = F.interpolate(self.conv_c4(c4), scale_factor=2, mode='nearest')
+        fused_c3 = self.conv_c3(c3) + c4_upsampled
 
-          # Step 2: Upsample C4 (75x75 -> 150x150) and fuse with C3
-          c4_upsampled = F.interpolate(c4_out, scale_factor=2, mode='nearest')  # 75x75 -> 150x150
-          c4_upsampled = c4_upsampled.to(torch.float16)
-          c3_fused = self.conv_c3(c3) + c4_upsampled  # Fuse C3 (150x150) and upsampled C4 (150x150)
-          c3_fused = c3_fused.to(torch.float16)
-          # Step 3: Upsample fused C3 (150x150 -> 300x300) and fuse with C2
-          c3_upsampled = F.interpolate(c3_fused, scale_factor=2, mode='nearest')  # 150x150 -> 300x300
-          c3_upsampled = c3_upsampled.to(torch.float16)
-          c2_fused = self.conv_c2(c2) + c3_upsampled  # Fuse C2 (300x300) and upsampled C3 (300x300)
-          c2_fused = c2_fused.to(torch.float16)
+        # Step 2: Fuse the upsampled result of C3 with C2
+        c3_upsampled = F.interpolate(fused_c3, scale_factor=2, mode='nearest')
+        fused_c2 = self.conv_c2(c2) + c3_upsampled
 
-          # Step 4: Apply final 3x3 convolutions to each fused feature map
-          c2_final = self.final_c2(c2_fused)  # Final output for C2 (300x300)
-          c3_final = self.final_c3(c3_fused)  # Final output for C3 (150x150)
-          c4_final = self.final_c4(c4_out)    # Final output for C4 (75x75)
-          c2_final = c2_final.to(torch.float16)
-          c3_final = c3_final.to(torch.float16)
-          c4_final = c4_final.to(torch.float16)
+        # Final convolution on fused output
+        final_output = self.final_fused_conv(fused_c2)
+        
+        # Generate P3, P4, P5 feature maps from the final output
+        P3 = final_output  # Original fused output for small objects
+        P4 = F.avg_pool2d(P3, kernel_size=2)  # 1x downsampled for medium objects
+        P5 = F.avg_pool2d(P4, kernel_size=2)  # 2x downsampled for large objects
 
-        return c2_final, c3_final, c4_final  # Return feature maps at 300x300, 150x150, 75x75
+        return [P3, P4, P5]
 
 class Detect(nn.Module):
     """YOLOv8 Detect head for detection models."""
@@ -574,14 +550,14 @@ class Detect(nn.Module):
     
 
 class YOLOv8StudentModel(nn.Module):
-  def __init__(self, num_classes, C=64, layers=14, steps=4, multiplier=4, stem_multiplier=3):
+  def __init__(self, num_classes, C=64, layers=7, steps=4, multiplier=4, stem_multiplier=3):
     """
     YOLOv8 Student Model with DARTS backbone, Neck, and YOLOv8 Detection Head.
     
     Args:
         num_classes (int): Number of object classes.
         C (int): Initial number of channels for the backbone.
-        layers (int): Total number of cells in the backbone (14 cells here).
+        layers (int): Total number of cells in the backbone (7 cells here).
         steps (int): Number of steps per DARTS cell.
         multiplier (int): Multiplier for channels in DARTS cells.
         stem_multiplier (int): Multiplier for channels in the stem layer.
@@ -595,19 +571,17 @@ class YOLOv8StudentModel(nn.Module):
           if module.bias is not None:
               module.bias.data = module.bias.data.half()
     
-    # DARTS-based backbone with 14 layers (3 reduction cells)
+    # DARTS-based backbone with 7 layers (1 reduction cells)
     self.backbone = DARTSBackbone(C=C, layers=layers, steps=steps, multiplier=multiplier, stem_multiplier=stem_multiplier)
     self.arch_parameters = self.backbone.arch_parameters()
     self._multiplier = multiplier
     
-    # Example: The channels from the backbone after feature extraction
-    # Assuming C3 and C4 feature maps from backbone
-    backbone_out_channels = [C*multiplier*2,C * multiplier * 4, C * multiplier * 8]  # Example for C3 and C4
+    backbone_out_channels = [C*multiplier, C*multiplier*2, C* multiplier*4]  # Example for C3 and C4
     self._steps = steps
 
     # Neck that fuses multi-scale feature maps
-    self.neck = NeckFPN(in_channels=backbone_out_channels) 
-    neck_out_channels = [256, 256, 256]  # Adjust based on your NeckFPN implementation
+    self.neck = SimpleNeck(in_channels=backbone_out_channels) 
+    neck_out_channels = [128, 128, 128]  # Adjust based on your SimpleNeck implementation
     self.detect = Detect(nc=num_classes, ch=neck_out_channels)
     self.model.append(self.detect)
     self._criterion = v8DetectionLoss(self,tal_topk=10)
@@ -673,17 +647,17 @@ class YOLOv8StudentModel(nn.Module):
     features = self.backbone(x)
     
     # Assuming the backbone returns two feature maps (C3 and C4)
-    C2,C3, C4 = features[0], features[1],features[2]  # Take feature maps for fusion
+    C2, C3, C4 = features[0], features[1],features[2]  # Take feature maps for fusion
     
     # Step 2: Pass feature maps through the neck for multi-scale fusion
-    fused_features = self.neck(C2,C3,C4)
+    fused_features = self.neck(C2, C3 , C4)
     # Step 3: Predict bounding boxes, objectness, and class scores
     x= self.detect(list(fused_features))
     #pred_bbox = x[:, :, :4]  
     #pred_obj = x[:, :, 4:5] 
     #pred_class = x[:, :, 5:]
 
-    return x#pred_bbox, pred_obj,pred_class
+    return x # pred_bbox, pred_obj,pred_class
   
 def process_yolov8_output(output, num_classes=6, reg_max=4):
     """
@@ -717,3 +691,82 @@ def process_yolov8_output(output, num_classes=6, reg_max=4):
     cls = cls.sigmoid()
     objectness = cls.max(dim=-1).values
     return dbox, cls, objectness
+
+class TestYOLOv8StudentModel(unittest.TestCase):
+    def setUp(self):
+        # Define model parameters for testing
+        self.num_classes = 6  # Example number of classes
+        self.C = 64  # Base number of channels
+        self.layers = 7  # Backbone layers
+        self.steps = 4
+        self.multiplier = 4
+        self.stem_multiplier = 3
+
+        # Initialize YOLOv8StudentModel with specified parameters
+        self.model = YOLOv8StudentModel(
+            num_classes=self.num_classes,
+            C=self.C,
+            layers=self.layers,
+            steps=self.steps,
+            multiplier=self.multiplier,
+            stem_multiplier=self.stem_multiplier
+        )
+        
+    def test_model_initialization(self):
+        # Check if the model has been initialized correctly
+        self.assertIsInstance(self.model.backbone, torch.nn.Module, "Backbone is not initialized correctly.")
+        self.assertIsInstance(self.model.neck, torch.nn.Module, "Neck is not initialized correctly.")
+        self.assertIsInstance(self.model.detect, torch.nn.Module, "Detect head is not initialized correctly.")
+
+    def test_forward_pass(self):
+        # Create a dummy input tensor
+        x = torch.randn(1, 3, 600, 600)  # Batch size of 1, 3 channels, 600x600 input
+
+        # Run a forward pass
+        output = self.model(x)
+        
+        # Check output type and ensure it's a tensor (adjust if returning multiple outputs)
+        self.assertIsInstance(output, torch.Tensor, "Model output is not a tensor.")
+        
+        # Check output shape (YOLO format)
+        expected_channels = 4 + 1 + self.num_classes  # 4 bbox coords, 1 objectness score, class logits
+        self.assertEqual(output.shape[1], expected_channels, "Output channel count mismatch.")
+        
+    def test_backbone_output_shape(self):
+        # Create a dummy input tensor for the backbone
+        x = torch.randn(1, 3, 600, 600)
+
+        # Check backbone feature maps
+        with torch.no_grad():
+            backbone_features = self.model.backbone(x)
+        
+        # Expect three outputs from the backbone
+        self.assertEqual(len(backbone_features), 3, "Backbone should output three feature maps.")
+        
+        # Validate expected shapes of each feature map
+        C2, C3, C4 = backbone_features
+        self.assertEqual(C2.shape[1], self.C * self.multiplier, "C2 channel count mismatch.")
+        self.assertEqual(C3.shape[1], self.C * self.multiplier * 2, "C3 channel count mismatch.")
+        self.assertEqual(C4.shape[1], self.C * self.multiplier * 2, "C4 channel count mismatch.")
+        
+    def test_loss_computation(self):
+        # Create dummy inputs and targets
+        x = torch.randn(1, 3, 600, 600)
+        dummy_target = {
+            'bbox': torch.randn(1, 5, 4),  # Dummy bounding boxes
+            'cls': torch.randint(0, self.num_classes, (1, 5)),  # Dummy class labels
+            'obj': torch.ones(1, 5)  # Objectness scores (all set to 1 for testing)
+        }
+
+        # Forward pass
+        output = self.model(x)
+        
+        # Compute loss (assuming _loss method uses criterion compatible with the model output)
+        loss = self.model._loss(output, dummy_target)
+        
+        # Check if loss is computed correctly
+        self.assertIsInstance(loss, torch.Tensor, "Loss should be a tensor.")
+        self.assertEqual(loss.ndim, 0, "Loss should be a scalar value.")
+
+if __name__ == "__main__":
+    unittest.main()
