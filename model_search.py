@@ -694,15 +694,18 @@ def process_yolov8_output(output, num_classes=6, reg_max=4):
 
 class TestYOLOv8StudentModel(unittest.TestCase):
     def setUp(self):
+        # Check if CUDA is available and set the device
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        
         # Define model parameters for testing
-        self.num_classes = 6  # Example number of classes
+        self.num_classes = 10  # Example number of classes
         self.C = 64  # Base number of channels
         self.layers = 7  # Backbone layers
         self.steps = 4
         self.multiplier = 4
         self.stem_multiplier = 3
 
-        # Initialize YOLOv8StudentModel with specified parameters
+        # Initialize YOLOv8StudentModel with specified parameters, and move to device
         self.model = YOLOv8StudentModel(
             num_classes=self.num_classes,
             C=self.C,
@@ -710,7 +713,7 @@ class TestYOLOv8StudentModel(unittest.TestCase):
             steps=self.steps,
             multiplier=self.multiplier,
             stem_multiplier=self.stem_multiplier
-        )
+        ).to(self.device)
         
     def test_model_initialization(self):
         # Check if the model has been initialized correctly
@@ -719,8 +722,8 @@ class TestYOLOv8StudentModel(unittest.TestCase):
         self.assertIsInstance(self.model.detect, torch.nn.Module, "Detect head is not initialized correctly.")
 
     def test_forward_pass(self):
-        # Create a dummy input tensor
-        x = torch.randn(1, 3, 600, 600)  # Batch size of 1, 3 channels, 600x600 input
+        # Create a dummy input tensor and move to device
+        x = torch.randn(1, 3, 600, 600, device=self.device)  # Batch size of 1, 3 channels, 600x600 input
 
         # Run a forward pass
         output = self.model(x)
@@ -733,8 +736,8 @@ class TestYOLOv8StudentModel(unittest.TestCase):
         self.assertEqual(output.shape[1], expected_channels, "Output channel count mismatch.")
         
     def test_backbone_output_shape(self):
-        # Create a dummy input tensor for the backbone
-        x = torch.randn(1, 3, 600, 600)
+        # Create a dummy input tensor for the backbone and move to device
+        x = torch.randn(1, 3, 600, 600, device=self.device)
 
         # Check backbone feature maps
         with torch.no_grad():
@@ -750,12 +753,12 @@ class TestYOLOv8StudentModel(unittest.TestCase):
         self.assertEqual(C4.shape[1], self.C * self.multiplier * 2, "C4 channel count mismatch.")
         
     def test_loss_computation(self):
-        # Create dummy inputs and targets
-        x = torch.randn(1, 3, 600, 600)
+        # Create dummy inputs and targets, and move inputs to device
+        x = torch.randn(1, 3, 600, 600, device=self.device)
         dummy_target = {
-            'bbox': torch.randn(1, 5, 4),  # Dummy bounding boxes
-            'cls': torch.randint(0, self.num_classes, (1, 5)),  # Dummy class labels
-            'obj': torch.ones(1, 5)  # Objectness scores (all set to 1 for testing)
+            'bbox': torch.randn(1, 5, 4, device=self.device),  # Dummy bounding boxes
+            'cls': torch.randint(0, self.num_classes, (1, 5), device=self.device),  # Dummy class labels
+            'obj': torch.ones(1, 5, device=self.device)  # Objectness scores (all set to 1 for testing)
         }
 
         # Forward pass
