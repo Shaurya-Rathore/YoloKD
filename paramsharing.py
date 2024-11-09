@@ -144,7 +144,7 @@ def main():
     
     try:
         results = trainer.train(
-            epochs=3,
+            epochs=40,
             batch_size=8,
             save_dir='yolov8_paramshare'
         )
