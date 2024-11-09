@@ -32,7 +32,7 @@ class YOLOTrainer:
         # Initialize model
         try:
             self.model = YOLO(model_type)
-            
+            self.model.to(self.device)
             # Move model to device
             if hasattr(self.model, 'model'):
                 self.model.model = self.model.model.to(self.device)
