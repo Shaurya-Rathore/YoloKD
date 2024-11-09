@@ -14,7 +14,7 @@ class YOLOTrainer:
         self,
         data_yaml_path: str,
         model_type: str = 'yolov8m.yaml',
-        project_name: str = 'yolov8',
+        project_name: str = 'yolov8_paramshare',
         wandb_key: str = None,
         device: str = None
     ):
@@ -122,8 +122,8 @@ class YOLOTrainer:
 if __name__ == "__main__":
     # Initialize trainer
     trainer = YOLOTrainer(
-        data_yaml_path='/path/to/data.yaml',
-        wandb_key="your-wandb-key"
+        data_yaml_path='/kaggle/input/ooga-dataset/ooga/ooga-main/ooga/data.yaml',
+        wandb_key="833b800ff23eb3d26e6c85a8b9e1fc8bbafc9775"
     )
     
     # Setup W&B logging
@@ -133,5 +133,5 @@ if __name__ == "__main__":
     results = trainer.train(
         epochs=35,
         batch_size=8,
-        save_dir='yolov8_training'
+        save_dir='yolov8_paramshare'
     )
