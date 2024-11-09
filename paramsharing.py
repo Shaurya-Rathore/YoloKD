@@ -31,7 +31,7 @@ class YOLOTrainer:
         
         # Initialize model
         try:
-            self.model = YOLO(model_type)
+            self.model = YOLO('yolov8m.yaml')
             self.model.to(self.device)
             # Move model to device
             if hasattr(self.model, 'model'):
