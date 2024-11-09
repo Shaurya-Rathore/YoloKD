@@ -136,7 +136,7 @@ class YOLOTrainer:
 def main():
     # Parse command line arguments if needed
     trainer = YOLOTrainer(
-        data_yaml_path='/kaggle/input/ooga-dataset/ooga/ooga-main/ooga/data.yaml',
+        data_yaml_path='/kaggle/input/waiddataset/WAID-main/WAID-main/WAID/data.yaml',
         wandb_key="833b800ff23eb3d26e6c85a8b9e1fc8bbafc9775"
     )
     
