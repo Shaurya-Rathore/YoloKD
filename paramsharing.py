@@ -71,7 +71,7 @@ class YOLOTrainer:
 
     def train(
         self,
-        epochs: int = 35,
+        epochs: int = 3,
         batch_size: int = 8,
         optimizer: str = 'auto',
         save_dir: str = None
