@@ -1,9 +1,7 @@
-
 import torch
 from ultralytics import YOLO
 import wandb
 from pathlib import Path
-import yaml
 from typing import Dict, Any
 import logging
 
@@ -34,16 +32,15 @@ class YOLOTrainer:
         # Initialize model
         try:
             self.model = YOLO(model_type)
-            # Move entire model to specified device
-            self.model = self.model.to(self.device)
             
-            # Ensure criterion and other model components are on the correct device
-            if hasattr(self.model, 'criterion'):
-                self.model.criterion = self.model.criterion.to(self.device)
+            # Move model to device
+            if hasattr(self.model, 'model'):
+                self.model.model = self.model.model.to(self.device)
                 
-            # Set default device for model computations
-            self.model.args.device = self.device
-            
+            # Ensure any internal models/modules are on the correct device
+            if hasattr(self.model, 'trainer') and hasattr(self.model.trainer, 'model'):
+                self.model.trainer.model = self.model.trainer.model.to(self.device)
+                
         except Exception as e:
             logger.error(f"Failed to initialize YOLO model: {e}")
             raise
@@ -94,30 +91,14 @@ class YOLOTrainer:
                 'optimizer': optimizer,
                 'project': self.project_name,
                 'save': True,
-                'device': self.device  # Explicitly set device for training
+                'device': [self.device],  # YOLOv8 expects device as a list
             }
             
             if save_dir:
                 train_args['project'] = save_dir
                 
-            # Monkey patch the loss computation to ensure device consistency
-            def loss_wrapper(criterion, preds, batch):
-                # Move batch to the correct device
-                if isinstance(batch, (tuple, list)):
-                    batch = [b.to(self.device) if torch.is_tensor(b) else b for b in batch]
-                elif isinstance(batch, dict):
-                    batch = {k: v.to(self.device) if torch.is_tensor(v) else v for k, v in batch.items()}
-                elif torch.is_tensor(batch):
-                    batch = batch.to(self.device)
-                
-                return criterion(preds, batch)
-            
-            if hasattr(self.model, 'criterion'):
-                original_call = self.model.criterion.__call__
-                self.model.criterion.__call__ = lambda x, y: loss_wrapper(original_call, x, y)
-            
             # Start training
-            logger.info("Starting training...")
+            logger.info(f"Starting training on device: {self.device}")
             results = self.model.train(**train_args)
             
             # Clean up
@@ -130,9 +111,30 @@ class YOLOTrainer:
             logger.error(f"Training failed: {e}")
             wandb.finish()
             raise
+        
+    def validate(self, val_loader):
+        """
+        Validate the model on a validation dataset
+        """
+        self.model.eval()
+        
+        try:
+            with torch.no_grad():
+                results = self.model.val(**{
+                    'data': str(self.data_yaml_path),
+                    'device': [self.device]
+                })
+                return results
+                
+        except Exception as e:
+            logger.error(f"Validation failed: {e}")
+            raise
+            
+        finally:
+            self.model.train()
 
-# Example usage
-if __name__ == "__main__":
+def main():
+    # Parse command line arguments if needed
     trainer = YOLOTrainer(
         data_yaml_path='/kaggle/input/ooga-dataset/ooga/ooga-main/ooga/data.yaml',
         wandb_key="833b800ff23eb3d26e6c85a8b9e1fc8bbafc9775"
@@ -140,8 +142,20 @@ if __name__ == "__main__":
     
     trainer.setup_wandb()
     
-    results = trainer.train(
-        epochs=35,
-        batch_size=8,
-        save_dir='yolov8_paramshare'
-    )
+    try:
+        results = trainer.train(
+            epochs=35,
+            batch_size=8,
+            save_dir='yolov8_paramshare'
+        )
+        logger.info(f"Training completed successfully: {results}")
+        
+    except Exception as e:
+        logger.error(f"Training failed: {e}")
+        raise
+    
+    finally:
+        wandb.finish()
+
+if __name__ == "__main__":
+    main()
