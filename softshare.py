@@ -9,6 +9,62 @@ from torch.optim import SGD
 from torch.optim.lr_scheduler import MultiStepLR
 import yaml
 
+class SoftSharedYOLO(nn.Module):
+    def __init__(self, base_model: YOLO, bank_size: int = 2):
+        super().__init__()
+        self.base_model = base_model
+        self.bank_size = bank_size
+        
+        # Create mappings to store layer references
+        self.layer_mapping = {}
+        self.filter_banks = nn.ModuleDict()
+        self.coefficients = nn.ParameterDict()
+        
+        # Create filter banks for each convolution layer
+        layer_count = 0
+        for name, module in self.base_model.model.named_modules():
+            if isinstance(module, nn.Conv2d):
+                # Use a simple numeric identifier instead of the full path
+                layer_id = f'conv_{layer_count}'
+                self.layer_mapping[name] = layer_id
+                
+                bank = nn.ModuleList([
+                    nn.Conv2d(
+                        module.in_channels,
+                        module.out_channels,
+                        module.kernel_size,
+                        module.stride,
+                        module.padding,
+                        bias=module.bias is not None
+                    ) for _ in range(bank_size)
+                ])
+                self.filter_banks[layer_id] = bank
+                
+                # Initialize sharing coefficients
+                coeff = nn.Parameter(torch.ones(bank_size) / bank_size)
+                self.coefficients[layer_id] = coeff
+                
+                layer_count += 1
+
+    def forward(self, x):
+        # Process through each layer with soft sharing
+        for name, module in self.base_model.model.named_modules():
+            if isinstance(module, nn.Conv2d):
+                layer_id = self.layer_mapping[name]
+                bank_outputs = []
+                
+                for i in range(self.bank_size):
+                    bank_output = self.filter_banks[layer_id][i](x)
+                    bank_outputs.append(bank_output)
+                
+                # Combine outputs using learned coefficients
+                coeffs = torch.softmax(self.coefficients[layer_id], dim=0)
+                x = sum(c * out for c, out in zip(coeffs, bank_outputs))
+            else:
+                x = module(x)
+                
+        return x
+
 class AverageMeter:
     """Computes and stores the average and current value"""
     def __init__(self):
@@ -25,55 +81,6 @@ class AverageMeter:
         self.sum += val * n
         self.count += n
         self.avg = self.sum / self.count
-
-class SoftSharedYOLO(nn.Module):
-    def __init__(self, base_model: YOLO, bank_size: int = 2):
-        super().__init__()
-        self.base_model = base_model
-        self.bank_size = bank_size
-        
-        # Initialize filter banks for convolution layers
-        self.filter_banks = nn.ModuleDict()
-        self.coefficients = nn.ParameterDict()
-        
-        # Create filter banks for each convolution layer
-        for name, module in self.base_model.model.named_modules():
-            if isinstance(module, nn.Conv2d):
-                bank = nn.ModuleList([
-                    nn.Conv2d(
-                        module.in_channels,
-                        module.out_channels,
-                        module.kernel_size,
-                        module.stride,
-                        module.padding,
-                        bias=module.bias is not None
-                    ) for _ in range(bank_size)
-                ])
-                self.filter_banks[name] = bank
-                
-                # Initialize sharing coefficients
-                coeff = nn.Parameter(torch.ones(bank_size) / bank_size)
-                self.coefficients[name] = coeff
-
-    def forward(self, x):
-        # Store intermediate outputs for each filter bank
-        layer_outputs = {}
-        
-        # Process through each layer with soft sharing
-        for name, module in self.base_model.model.named_modules():
-            if isinstance(module, nn.Conv2d):
-                bank_outputs = []
-                for i in range(self.bank_size):
-                    bank_output = self.filter_banks[name][i](x)
-                    bank_outputs.append(bank_output)
-                
-                # Combine outputs using learned coefficients
-                coeffs = torch.softmax(self.coefficients[name], dim=0)
-                x = sum(c * out for c, out in zip(coeffs, bank_outputs))
-            else:
-                x = module(x)
-                
-        return x
 
 class EnhancedYOLOTrainer:
     def __init__(
@@ -107,7 +114,7 @@ class EnhancedYOLOTrainer:
         
         # Initialize model with soft sharing
         try:
-            base_model = YOLO('yolov8m.yaml')
+            base_model = YOLO(model_type)
             self.model = SoftSharedYOLO(base_model, bank_size=bank_size)
             self.model.to(self.device)
             
@@ -119,19 +126,6 @@ class EnhancedYOLOTrainer:
         self.train_loss = AverageMeter()
         self.val_loss = AverageMeter()
         self.best_val_loss = float('inf')
-        
-    def setup_optimizer(self, learning_rate: float):
-        """Configure optimizer with parameter groups for soft sharing"""
-        # Group parameters - separate weight decay for coefficients
-        params = [
-            {'params': [p for n, p in self.model.named_parameters() if 'coefficients' not in n],
-             'weight_decay': self.weight_decay},
-            {'params': [p for n, p in self.model.named_parameters() if 'coefficients' in n],
-             'weight_decay': 0.0}
-        ]
-        
-        self.optimizer = SGD(params, lr=learning_rate, momentum=self.momentum)
-        self.scheduler = MultiStepLR(self.optimizer, milestones=self.schedule, gamma=self.gammas[0])
 
     def setup_wandb(self) -> None:
         """Initialize W&B logging with soft sharing parameters"""
@@ -153,37 +147,17 @@ class EnhancedYOLOTrainer:
             logging.error(f"Failed to initialize W&B: {e}")
             raise
 
-    def log_metrics(self, epoch: int, step: int, metrics: Dict[str, float]):
-        """Enhanced logging including soft sharing coefficients"""
-        try:
-            # Log basic metrics
-            wandb.log(metrics, step=step)
-            
-            # Log coefficient distributions
-            for name, coeff in self.model.coefficients.items():
-                wandb.log({
-                    f'coefficients/{name}': wandb.Histogram(coeff.detach().cpu().numpy())
-                }, step=step)
-                
-        except Exception as e:
-            logging.warning(f"Failed to log metrics to W&B: {e}")
-
-    def save_checkpoint(self, epoch: int, is_best: bool, save_dir: str):
-        """Save model checkpoint with soft sharing state"""
-        checkpoint = {
-            'epoch': epoch,
-            'model_state_dict': self.model.state_dict(),
-            'optimizer_state_dict': self.optimizer.state_dict(),
-            'scheduler_state_dict': self.scheduler.state_dict(),
-            'best_val_loss': self.best_val_loss
-        }
+    def setup_optimizer(self, learning_rate: float):
+        """Configure optimizer with parameter groups for soft sharing"""
+        params = [
+            {'params': [p for n, p in self.model.named_parameters() if 'coefficients' not in n],
+             'weight_decay': self.weight_decay},
+            {'params': [p for n, p in self.model.named_parameters() if 'coefficients' in n],
+             'weight_decay': 0.0}
+        ]
         
-        save_path = Path(save_dir)
-        save_path.mkdir(parents=True, exist_ok=True)
-        
-        torch.save(checkpoint, save_path / 'checkpoint.pth')
-        if is_best:
-            torch.save(checkpoint, save_path / 'model_best.pth')
+        self.optimizer = SGD(params, lr=learning_rate, momentum=self.momentum)
+        self.scheduler = MultiStepLR(self.optimizer, milestones=self.schedule, gamma=self.gammas[0])
 
     def train(
         self,
@@ -198,42 +172,19 @@ class EnhancedYOLOTrainer:
         self.setup_optimizer(learning_rate)
         
         try:
-            # Configure training parameters
+            # Configure training parameters using YOLO's training interface
             train_args = {
                 'data': str(self.data_yaml_path),
                 'epochs': epochs,
                 'batch': batch_size,
-                'project': self.project_name,
+                'project': self.project_name if not save_dir else save_dir,
                 'device': [self.device],
             }
             
-            if save_dir:
-                train_args['project'] = save_dir
+            # Start training using YOLO's training method
+            results = self.model.base_model.train(**train_args)
             
-            for epoch in range(epochs):
-                # Training phase
-                self.model.train()
-                epoch_metrics = self.train_epoch(epoch)
-                
-                # Validation phase
-                val_metrics = self.validate()
-                
-                # Update learning rate
-                self.scheduler.step()
-                
-                # Save checkpoint
-                is_best = val_metrics['val_loss'] < self.best_val_loss
-                if is_best:
-                    self.best_val_loss = val_metrics['val_loss']
-                
-                if save_dir:
-                    self.save_checkpoint(epoch, is_best, save_dir)
-                
-                # Log metrics
-                combined_metrics = {**epoch_metrics, **val_metrics}
-                self.log_metrics(epoch, epoch * len(self.train_loader), combined_metrics)
-            
-            return {'best_val_loss': self.best_val_loss}
+            return results
             
         except Exception as e:
             logging.error(f"Training failed: {e}")
@@ -243,9 +194,21 @@ class EnhancedYOLOTrainer:
             wandb.finish()
             torch.cuda.empty_cache()
 
+    def validate(self):
+        """
+        Validate the model
+        """
+        try:
+            results = self.model.base_model.val(data=str(self.data_yaml_path))
+            return results
+        except Exception as e:
+            logging.error(f"Validation failed: {e}")
+            raise
+
 def main():
     trainer = EnhancedYOLOTrainer(
         data_yaml_path='/kaggle/input/waiddataset/WAID-main/WAID-main/WAID/data.yaml',
+        model_type='yolov8n.yaml',
         wandb_key="833b800ff23eb3d26e6c85a8b9e1fc8bbafc9775",
         bank_size=2,
         schedule=[60, 120, 160],
