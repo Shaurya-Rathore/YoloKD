@@ -908,61 +908,61 @@ def parse_model(d, ch, verbose=True):  # model_dict, input_channels(3)
     layers, save, c2 = [], [], ch[-1]  # layers, savelist, ch out
     bank = TemplateBank(3, 256, 256, 3)
     for i, (f, n, m, args) in enumerate(d["backbone"] + d["head"]):  # from, number, module, args
-        if m == "TemplateBank":
-            num_templates, in_planes, out_planes, kernel_size = args
-            m_ = TemplateBank(num_templates, in_planes, out_planes, kernel_size)
+        m = getattr(torch.nn, m[3:]) if "nn." in m else globals()[m]  # get module
+        for j, a in enumerate(args):
+            if isinstance(a, str):
+                with contextlib.suppress(ValueError):
+                    args[j] = locals()[a] if a in locals() else ast.literal_eval(a)
 
-            c2 = out_planes  # Update output channels
-        elif m == "SConv2d":
-            stride, padding = args
-            #if isinstance(bank_args, list):
-                #bank = TemplateBank(*bank_args)  # Initialize TemplateBank from args
-            #else:
-                #bank = bank_args  # Assume it's already a TemplateBank instance
-            m_ = SConv2d(bank, stride=stride, padding=padding)
-            c2 = bank.templates.shape[0]
-        else:
-            m = getattr(torch.nn, m[3:]) if "nn." in m else globals()[m]  # get module
-            for j, a in enumerate(args):
-                if isinstance(a, str):
-                    with contextlib.suppress(ValueError):
-                        args[j] = locals()[a] if a in locals() else ast.literal_eval(a)
+        n = n_ = max(round(n * depth), 1) if n > 1 else n  # depth gain
+        if m in {
+            Classify,
+            Conv,
+            ConvTranspose,
+            GhostConv,
+            Bottleneck,
+            GhostBottleneck,
+            SPP,
+            SPPF,
+            DWConv,
+            Focus,
+            BottleneckCSP,
+            C1,
+            C2,
+            C2f,
+            C2fOutputs,
+            RepNCSPELAN4,
+            ELAN1,
+            ADown,
+            AConv,
+            SPPELAN,
+            C2fAttn,
+            C3,
+            C3TR,
+            C3Ghost,
+            nn.ConvTranspose2d,
+            DWConvTranspose2d,
+            C3x,
+            RepC3,
+            PSA,
+            SCDown,
+            C2fCIB,
+            LDConv,
+        }:
+            if m == "TemplateBank":
+                num_templates, in_planes, out_planes, kernel_size = args
+                m_ = TemplateBank(num_templates, in_planes, out_planes, kernel_size)
 
-            n = n_ = max(round(n * depth), 1) if n > 1 else n  # depth gain
-            if m in {
-                Classify,
-                Conv,
-                ConvTranspose,
-                GhostConv,
-                Bottleneck,
-                GhostBottleneck,
-                SPP,
-                SPPF,
-                DWConv,
-                Focus,
-                BottleneckCSP,
-                C1,
-                C2,
-                C2f,
-                C2fOutputs,
-                RepNCSPELAN4,
-                ELAN1,
-                ADown,
-                AConv,
-                SPPELAN,
-                C2fAttn,
-                C3,
-                C3TR,
-                C3Ghost,
-                nn.ConvTranspose2d,
-                DWConvTranspose2d,
-                C3x,
-                RepC3,
-                PSA,
-                SCDown,
-                C2fCIB,
-                LDConv,
-            }:
+                c2 = out_planes  # Update output channels
+            elif m == "SConv2d":
+                stride, padding = args
+                #if isinstance(bank_args, list):
+                    #bank = TemplateBank(*bank_args)  # Initialize TemplateBank from args
+                #else:
+                    #bank = bank_args  # Assume it's already a TemplateBank instance
+                m_ = SConv2d(bank, stride=stride, padding=padding)
+                c2 = bank.templates.shape[0]
+            else:
                 c1, c2 = ch[f], args[0]
                 if c2 != nc:  # if c2 not equal to number of classes (i.e. for Classify() output)
                     c2 = make_divisible(min(c2, max_channels) * width, 8)
@@ -977,42 +977,42 @@ def parse_model(d, ch, verbose=True):  # model_dict, input_channels(3)
                 if m in {BottleneckCSP, C1, C2, C2f, C2fOutputs, C2fAttn, C3, C3TR, C3Ghost, C3x, RepC3, C2fCIB}:
                     args.insert(2, n)  # number of repeats
                     n = 1
-            elif m is AIFI:
-                args = [ch[f], *args]
-            elif m in {HGStem, HGBlock}:
-                c1, cm, c2 = ch[f], args[0], args[1]
-                args = [c1, cm, c2, *args[2:]]
-                if m is HGBlock:
-                    args.insert(4, n)  # number of repeats
-                    n = 1
-            elif m is ResNetLayer:
-                c2 = args[1] if args[3] else args[1] * 4
-            elif m is nn.BatchNorm2d:
-                args = [ch[f]]
-            elif m is Concat:
-                c2 = sum(ch[x] for x in f)
-            elif m in {Detect, WorldDetect, Segment, Pose, OBB, ImagePoolingAttn, v10Detect}:
-                args.append([ch[x] for x in f])
-                if m is Segment:
-                    args[2] = make_divisible(min(args[2], max_channels) * width, 8)
-            elif m is RTDETRDecoder:  # special case, channels arg must be passed in index 1
-                args.insert(1, [ch[x] for x in f])
-            elif m is CBLinear:
-                c2 = args[0]
-                c1 = ch[f]
-                args = [c1, c2, *args[1:]]
-            elif m is CBFuse:
-                c2 = ch[f[-1]]
-            else:
-                c2 = ch[f]
+                elif m is AIFI:
+                    args = [ch[f], *args]
+                elif m in {HGStem, HGBlock}:
+                    c1, cm, c2 = ch[f], args[0], args[1]
+                    args = [c1, cm, c2, *args[2:]]
+                    if m is HGBlock:
+                        args.insert(4, n)  # number of repeats
+                        n = 1
+                elif m is ResNetLayer:
+                    c2 = args[1] if args[3] else args[1] * 4
+                elif m is nn.BatchNorm2d:
+                    args = [ch[f]]
+                elif m is Concat:
+                    c2 = sum(ch[x] for x in f)
+                elif m in {Detect, WorldDetect, Segment, Pose, OBB, ImagePoolingAttn, v10Detect}:
+                    args.append([ch[x] for x in f])
+                    if m is Segment:
+                        args[2] = make_divisible(min(args[2], max_channels) * width, 8)
+                elif m is RTDETRDecoder:  # special case, channels arg must be passed in index 1
+                    args.insert(1, [ch[x] for x in f])
+                elif m is CBLinear:
+                    c2 = args[0]
+                    c1 = ch[f]
+                    args = [c1, c2, *args[1:]]
+                elif m is CBFuse:
+                    c2 = ch[f[-1]]
+                else:
+                    c2 = ch[f]
 
-            m_ = nn.Sequential(*(m(*args) for _ in range(n))) if n > 1 else m(*args)  # module
-            t = str(m)[8:-2].replace("__main__.", "")  # module type
-            m.np = sum(x.numel() for x in m_.parameters())  # number params
-            m_.i, m_.f, m_.type = i, f, t  # attach index, 'from' index, type
-            if verbose:
-                LOGGER.info(f"{i:>3}{str(f):>20}{n_:>3}{m.np:10.0f}  {t:<45}{str(args):<30}")  # print
-            save.extend(x % i for x in ([f] if isinstance(f, int) else f) if x != -1)  # append to savelist
+        m_ = nn.Sequential(*(m(*args) for _ in range(n))) if n > 1 else m(*args)  # module
+        t = str(m)[8:-2].replace("__main__.", "")  # module type
+        m.np = sum(x.numel() for x in m_.parameters())  # number params
+        m_.i, m_.f, m_.type = i, f, t  # attach index, 'from' index, type
+        if verbose:
+            LOGGER.info(f"{i:>3}{str(f):>20}{n_:>3}{m.np:10.0f}  {t:<45}{str(args):<30}")  # print
+        save.extend(x % i for x in ([f] if isinstance(f, int) else f) if x != -1)  # append to savelist
         layers.append(m_)
         if i == 0:
             ch = []
