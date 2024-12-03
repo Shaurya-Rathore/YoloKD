@@ -13,11 +13,11 @@ backbone:
   - [-1, 1, Conv, [256, 3, 2]] # 3-P3/8
   - [-1, 6, C2f, [256, True]]
   - [-1, 1, TemplateBank, [3, 256, 256, 3]] # Using TemplateBank with 3 templates
-  - [-1, 6, SConv2d, [TemplateBank, 1, 1]] # Replace Conv with SConv2d
+  - [-1, 6, SConv2d, [[3, 256, 256, 3], 1, 1]] # Replace Conv with SConv2d
   - [-1, 1, Conv, [512, 3, 2]] # 5-P4/16
-  - [-1, 6, SConv2d, [TemplateBank, 1,1]] # Add soft sharing
+  - [-1, 6, SConv2d, [[3, 256, 256, 3], 1,1]] # Add soft sharing
   - [-1, 1, Conv, [1024, 3, 2]] # 7-P5/32
-  - [-1, 3, SConv2d, [TemplateBank,1,1]] # Add soft sharing
+  - [-1, 3, SConv2d, [[3, 256, 256, 3],1,1]] # Add soft sharing
   - [-1, 1, SPPF, [1024, 5]] # 9
 
 # YOLOv8.0n head with TemplateBank and SConv2d
