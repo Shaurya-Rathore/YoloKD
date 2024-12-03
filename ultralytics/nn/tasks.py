@@ -906,17 +906,19 @@ def parse_model(d, ch, verbose=True):  # model_dict, input_channels(3)
         LOGGER.info(f"\n{'':>3}{'from':>20}{'n':>3}{'params':>10}  {'module':<45}{'arguments':<30}")
     ch = [ch]
     layers, save, c2 = [], [], ch[-1]  # layers, savelist, ch out
+    bank = TemplateBank(3, 256, 256, 3)
     for i, (f, n, m, args) in enumerate(d["backbone"] + d["head"]):  # from, number, module, args
         if m == "TemplateBank":
             num_templates, in_planes, out_planes, kernel_size = args
             m_ = TemplateBank(num_templates, in_planes, out_planes, kernel_size)
+
             c2 = out_planes  # Update output channels
         elif m == "SConv2d":
-            bank_args, stride, padding = args
-            if isinstance(bank_args, list):
-                bank = TemplateBank(*bank_args)  # Initialize TemplateBank from args
-            else:
-                bank = bank_args  # Assume it's already a TemplateBank instance
+            stride, padding = args
+            #if isinstance(bank_args, list):
+                #bank = TemplateBank(*bank_args)  # Initialize TemplateBank from args
+            #else:
+                #bank = bank_args  # Assume it's already a TemplateBank instance
             m_ = SConv2d(bank, stride=stride, padding=padding)
             c2 = bank.templates.shape[0]
         else:
