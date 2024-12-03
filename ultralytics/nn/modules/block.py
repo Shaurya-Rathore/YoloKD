@@ -1003,11 +1003,17 @@ class TemplateBank(nn.Module):
 class SConv2d(nn.Module):
     def __init__(self, bank, stride=1, padding=1):
         super(SConv2d, self).__init__()
+        if isinstance(bank, TemplateBank):
+            self.bank = bank
+        elif isinstance(bank, list):
+            # Initialize TemplateBank if a list of arguments is passed
+            self.bank = TemplateBank(*bank)
+        else:
+            raise ValueError("Invalid argument for 'bank': must be a TemplateBank or list of parameters.")
         self.stride = stride
         self.padding = padding
-        self.bank = bank
-        self.coefficients = nn.Parameter(torch.zeros(bank.coefficient_shape))
+        self.coefficients = nn.Parameter(torch.zeros(self.bank.coefficient_shape))
 
-    def forward(self, input):
+    def forward(self, x):
         params = self.bank(self.coefficients)
-        return F.conv2d(input, params, stride=self.stride, padding=self.padding)
+        return F.conv2d(x, params, stride=self.stride, padding=self.padding)
