@@ -54,6 +54,8 @@ from .block import (
     RepVGGDW,
     ResNetLayer,
     SCDown,
+    TemplateBank,
+    SConv2d
 )
 from .conv import (
     CBAM,
@@ -99,6 +101,7 @@ __all__ = (
     "SpatialAttention",
     "CBAM",
     "Concat",
+    "LDConv",
     "TransformerLayer",
     "TransformerBlock",
     "MLPBlock",
@@ -153,5 +156,6 @@ __all__ = (
     "Attention",
     "PSA",
     "SCDown",
-    "LDConv",
+    "TemplateBank",
+    "SConv2d",
 )
