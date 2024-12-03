@@ -959,7 +959,8 @@ def parse_model(d, ch, verbose=True):  # model_dict, input_channels(3)
                     max(round(min(args[2], max_channels // 2 // 32)) * width, 1) if args[2] > 1 else args[2]
                 )  # num heads
 
-            args = [c1, c2, *args[1:]]
+            if m not in {TemplateBank}:
+                 args = [c1, c2, *args[1:]]
             if m in {BottleneckCSP, C1, C2, C2f, C2fOutputs, C2fAttn, C3, C3TR, C3Ghost, C3x, RepC3, C2fCIB}:
                 args.insert(2, n)  # number of repeats
                 n = 1

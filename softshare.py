@@ -86,7 +86,7 @@ class EnhancedYOLOTrainer:
     def __init__(
         self,
         data_yaml_path: str,
-        model_type: str = 'yolov8m.yaml',
+        model_type: str = 'yolov8n.yaml',
         project_name: str = 'yolov8_softshare',
         wandb_key: str = None,
         bank_size: int = 2,
@@ -221,7 +221,7 @@ def main():
     
     try:
         results = trainer.train(
-            epochs=40,
+            epochs=3,
             batch_size=8,
             learning_rate=0.1,
             save_dir='yolov8_softshare'
