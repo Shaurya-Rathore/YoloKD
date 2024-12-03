@@ -907,6 +907,18 @@ def parse_model(d, ch, verbose=True):  # model_dict, input_channels(3)
     ch = [ch]
     layers, save, c2 = [], [], ch[-1]  # layers, savelist, ch out
     for i, (f, n, m, args) in enumerate(d["backbone"] + d["head"]):  # from, number, module, args
+        if m == "TemplateBank":
+            num_templates, in_planes, out_planes, kernel_size = args
+            module = TemplateBank(num_templates, in_planes, out_planes, kernel_size)
+            c2 = out_planes  # Update output channels
+        elif m == "SConv2d":
+            bank_args, stride, padding = args
+            if isinstance(bank_args, list):
+                bank = TemplateBank(*bank_args)  # Initialize TemplateBank from args
+            else:
+                bank = bank_args  # Assume it's already a TemplateBank instance
+            module = SConv2d(bank, stride=stride, padding=padding)
+            c2 = bank.templates.shape[0]
         m = getattr(torch.nn, m[3:]) if "nn." in m else globals()[m]  # get module
         for j, a in enumerate(args):
             if isinstance(a, str):
