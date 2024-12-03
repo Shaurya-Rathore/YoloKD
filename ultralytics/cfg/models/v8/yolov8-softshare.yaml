@@ -1,13 +1,8 @@
 
 # Parameters
 nc: 6 # number of classes
-scales: # model compound scaling constants
-  # [depth, width, max_channels]
-  n: [0.33, 0.25, 1024] # YOLOv8n
-  s: [0.33, 0.50, 1024] # YOLOv8s
-  m: [0.67, 0.75, 768]  # YOLOv8m
-  l: [1.00, 1.00, 512]  # YOLOv8l
-  x: [1.00, 1.25, 512]  # YOLOv8x
+depth_multiple: 0.33  # scales module repeats
+width_multiple: 0.5  # scales convolution channels
 
 # YOLOv8.0n backbone with TemplateBank and SConv2d
 backbone:
