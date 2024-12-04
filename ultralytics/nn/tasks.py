@@ -963,9 +963,37 @@ def parse_model(d, ch, verbose=True):  # model_dict, input_channels(3)
             if m in {BottleneckCSP, C1, C2, C2f, C2fOutputs, C2fAttn, C3, C3TR, C3Ghost, C3x, RepC3, C2fCIB}:
                 args.insert(2, n)  # number of repeats
                 n = 1
-            m_ = nn.Sequential(*(m(*args) for _ in range(n))) if n > 1 else m(*args)  # module
+        elif m is AIFI:
+            args = [ch[f], *args]
+        elif m in {HGStem, HGBlock}:
+            c1, cm, c2 = ch[f], args[0], args[1]
+            args = [c1, cm, c2, *args[2:]]
+            if m is HGBlock:
+                args.insert(4, n)  # number of repeats
+                n = 1
+        elif m is ResNetLayer:
+            c2 = args[1] if args[3] else args[1] * 4
+        elif m is nn.BatchNorm2d:
+            args = [ch[f]]
+        elif m is Concat:
+            c2 = sum(ch[x] for x in f)
+        elif m in {Detect, WorldDetect, Segment, Pose, OBB, ImagePoolingAttn, v10Detect}:
+            args.append([ch[x] for x in f])
+            if m is Segment:
+                args[2] = make_divisible(min(args[2], max_channels) * width, 8)
+        elif m is RTDETRDecoder:  # special case, channels arg must be passed in index 1
+            args.insert(1, [ch[x] for x in f])
+        elif m is CBLinear:
+            c2 = args[0]
+            c1 = ch[f]
+            args = [c1, c2, *args[1:]]
+        elif m is CBFuse:
+            c2 = ch[f[-1]]
+        else:
+            c2 = ch[f]
 
-        elif m == "TemplateBank":
+        m_ = nn.Sequential(*(m(*args) for _ in range(n))) if n > 1 else m(*args)
+        if m == "TemplateBank":
             num_templates, in_planes, out_planes, kernel_size = args
             m_ = TemplateBank(num_templates, in_planes, out_planes, kernel_size)
             c2 = out_planes  # Update output channels
@@ -986,46 +1014,6 @@ def parse_model(d, ch, verbose=True):  # model_dict, input_channels(3)
             
             m_ = SConv2d(bank, stride=stride, padding=padding)
             c2 = bank.templates.shape[0]
-
-        elif m is AIFI:
-            args = [ch[f], *args]
-            m_ = nn.Sequential(*(m(*args) for _ in range(n))) if n > 1 else m(*args)  # module
-        elif m in {HGStem, HGBlock}:
-            c1, cm, c2 = ch[f], args[0], args[1]
-            args = [c1, cm, c2, *args[2:]]
-            if m is HGBlock:
-                args.insert(4, n)  # number of repeats
-                n = 1
-            m_ = nn.Sequential(*(m(*args) for _ in range(n))) if n > 1 else m(*args)  # module
-        elif m is ResNetLayer:
-            c2 = args[1] if args[3] else args[1] * 4
-            m_ = nn.Sequential(*(m(*args) for _ in range(n))) if n > 1 else m(*args)  # module
-        elif m is nn.BatchNorm2d:
-            args = [ch[f]]
-            m_ = nn.Sequential(*(m(*args) for _ in range(n))) if n > 1 else m(*args)  # module
-        elif m is Concat:
-            c2 = sum(ch[x] for x in f)
-            m_ = nn.Sequential(*(m(*args) for _ in range(n))) if n > 1 else m(*args)  # module
-        elif m in {Detect, WorldDetect, Segment, Pose, OBB, ImagePoolingAttn, v10Detect}:
-            args.append([ch[x] for x in f])
-            if m is Segment:
-                args[2] = make_divisible(min(args[2], max_channels) * width, 8)
-            m_ = nn.Sequential(*(m(*args) for _ in range(n))) if n > 1 else m(*args)  # module
-        elif m is RTDETRDecoder:  # special case, channels arg must be passed in index 1
-            args.insert(1, [ch[x] for x in f])
-            m_ = nn.Sequential(*(m(*args) for _ in range(n))) if n > 1 else m(*args)  # module
-        elif m is CBLinear:
-            c2 = args[0]
-            c1 = ch[f]
-            args = [c1, c2, *args[1:]]
-            m_ = nn.Sequential(*(m(*args) for _ in range(n))) if n > 1 else m(*args)  # module
-        elif m is CBFuse:
-            c2 = ch[f[-1]]
-            m_ = nn.Sequential(*(m(*args) for _ in range(n))) if n > 1 else m(*args)  # module
-        else:
-            c2 = ch[f]
-            m_ = nn.Sequential(*(m(*args) for _ in range(n))) if n > 1 else m(*args)  # module
-
         t = str(m)[8:-2].replace("__main__.", "")  # module type
         m.np = sum(x.numel() for x in m_.parameters())  # number params
         m_.i, m_.f, m_.type = i, f, t  # attach index, 'from' index, type
