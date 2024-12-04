@@ -998,24 +998,34 @@ def parse_model(d, ch, verbose=True):  # model_dict, input_channels(3)
         elif m is CBFuse:
             c2 = ch[f[-1]]
             m_ = nn.Sequential(*(m(*args) for _ in range(n))) if n > 1 else m(*args)  # module
+            
         elif m == "TemplateBank":
-                num_templates, in_planes, out_planes, kernel_size = args
-                m_ = TemplateBank(num_templates, in_planes, out_planes, kernel_size)
+            num_templates, in_planes, out_planes, kernel_size = args
+            m_ = TemplateBank(num_templates, in_planes, out_planes, kernel_size)
+            c2 = out_planes  # Update output channels
 
-                c2 = out_planes  # Update output channels
+        # When handling SConv2d
         elif m == "SConv2d":
+            # Retrieve the previously created TemplateBank
             stride, padding = args
-            #if isinstance(bank_args, list):
-                #bank = TemplateBank(*bank_args)  # Initialize TemplateBank from args
-            #else:
-                #bank = bank_args  # Assume it's already a TemplateBank instance
+            
+            # Find the most recent TemplateBank
+            bank = None
+            for prev_layer in reversed(layers):
+                if isinstance(prev_layer, TemplateBank):
+                    bank = prev_layer
+                    break
+            
+            if bank is None:
+                # If no TemplateBank found, create a default one
+                bank = TemplateBank(3, ch[f], ch[f], 3)
+            
             m_ = SConv2d(bank, stride=stride, padding=padding)
             c2 = bank.templates.shape[0]
         else:
             c2 = ch[f]
             m_ = nn.Sequential(*(m(*args) for _ in range(n))) if n > 1 else m(*args)  # module
 
-        
         t = str(m)[8:-2].replace("__main__.", "")  # module type
         m.np = sum(x.numel() for x in m_.parameters())  # number params
         m_.i, m_.f, m_.type = i, f, t  # attach index, 'from' index, type

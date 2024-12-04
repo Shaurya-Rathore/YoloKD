@@ -994,7 +994,8 @@ class TemplateBank(nn.Module):
         super(TemplateBank, self).__init__()
         self.coefficient_shape = (num_templates,1,1,1,1)
         templates = [torch.Tensor(out_planes, in_planes, kernel_size, kernel_size) for _ in range(num_templates)]
-        for i in range(num_templates): init.kaiming_normal_(templates[i])
+        for i in range(num_templates): 
+            init.kaiming_normal_(templates[i])
         self.templates = nn.Parameter(torch.stack(templates))
 
     def forward(self, coefficients):
@@ -1010,6 +1011,7 @@ class SConv2d(nn.Module):
             self.bank = TemplateBank(*bank)
         else:
             raise ValueError("Invalid argument for 'bank': must be a TemplateBank or list of parameters.")
+
         self.stride = stride
         self.padding = padding
         self.coefficients = nn.Parameter(torch.zeros(self.bank.coefficient_shape))
