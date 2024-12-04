@@ -885,6 +885,7 @@ def attempt_load_one_weight(weight, device=None, inplace=True, fuse=False):
 def parse_model(d, ch, verbose=True):  # model_dict, input_channels(3)
     """Parse a YOLO model.yaml dictionary into a PyTorch model."""
     import ast
+    import contextlib
 
     # Args
     max_channels = float("inf")
@@ -906,7 +907,7 @@ def parse_model(d, ch, verbose=True):  # model_dict, input_channels(3)
         LOGGER.info(f"\n{'':>3}{'from':>20}{'n':>3}{'params':>10}  {'module':<45}{'arguments':<30}")
     ch = [ch]
     layers, save, c2 = [], [], ch[-1]  # layers, savelist, ch out
-    bank = TemplateBank(3, 256, 256, 3)
+
     for i, (f, n, m, args) in enumerate(d["backbone"] + d["head"]):  # from, number, module, args
         m = getattr(torch.nn, m[3:]) if "nn." in m else globals()[m]  # get module
         for j, a in enumerate(args):
@@ -963,6 +964,29 @@ def parse_model(d, ch, verbose=True):  # model_dict, input_channels(3)
                 args.insert(2, n)  # number of repeats
                 n = 1
             m_ = nn.Sequential(*(m(*args) for _ in range(n))) if n > 1 else m(*args)  # module
+
+        elif m == "TemplateBank":
+            num_templates, in_planes, out_planes, kernel_size = args
+            m_ = TemplateBank(num_templates, in_planes, out_planes, kernel_size)
+            c2 = out_planes  # Update output channels
+
+        elif m == "SConv2d":
+            stride, padding = args
+            
+            # Find the most recent TemplateBank
+            bank = None
+            for prev_layer in reversed(layers):
+                if isinstance(prev_layer, TemplateBank):
+                    bank = prev_layer
+                    break
+            
+            if bank is None:
+                # If no TemplateBank found, create a default one
+                bank = TemplateBank(3, ch[f], ch[f], 3)
+            
+            m_ = SConv2d(bank, stride=stride, padding=padding)
+            c2 = bank.templates.shape[0]
+
         elif m is AIFI:
             args = [ch[f], *args]
             m_ = nn.Sequential(*(m(*args) for _ in range(n))) if n > 1 else m(*args)  # module
@@ -998,30 +1022,6 @@ def parse_model(d, ch, verbose=True):  # model_dict, input_channels(3)
         elif m is CBFuse:
             c2 = ch[f[-1]]
             m_ = nn.Sequential(*(m(*args) for _ in range(n))) if n > 1 else m(*args)  # module
-            
-        elif m == "TemplateBank":
-            num_templates, in_planes, out_planes, kernel_size = args
-            m_ = TemplateBank(num_templates, in_planes, out_planes, kernel_size)
-            c2 = out_planes  # Update output channels
-
-        # When handling SConv2d
-        elif m == "SConv2d":
-            # Retrieve the previously created TemplateBank
-            stride, padding = args
-            
-            # Find the most recent TemplateBank
-            bank = None
-            for prev_layer in reversed(layers):
-                if isinstance(prev_layer, TemplateBank):
-                    bank = prev_layer
-                    break
-            
-            if bank is None:
-                # If no TemplateBank found, create a default one
-                bank = TemplateBank(3, ch[f], ch[f], 3)
-            
-            m_ = SConv2d(bank, stride=stride, padding=padding)
-            c2 = bank.templates.shape[0]
         else:
             c2 = ch[f]
             m_ = nn.Sequential(*(m(*args) for _ in range(n))) if n > 1 else m(*args)  # module
@@ -1037,8 +1037,7 @@ def parse_model(d, ch, verbose=True):  # model_dict, input_channels(3)
             ch = []
         ch.append(c2)
     return nn.Sequential(*layers), sorted(save)
-
-
+    
 def yaml_model_load(path):
     """Load a YOLOv8 model from a YAML file."""
     import re
