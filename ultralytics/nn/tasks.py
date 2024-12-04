@@ -1010,7 +1010,11 @@ def parse_model(d, ch, verbose=True):  # model_dict, input_channels(3)
             
             if bank is None:
                 # If no TemplateBank found, create a default one
-                bank = TemplateBank(3, ch[f], ch[f], 3)
+                LOGGER.warning("No valid TemplateBank found; creating a default TemplateBank.")
+                try:
+                    bank = TemplateBank(3, ch[f], ch[f], 3)
+                except Exception as e:
+                    raise ValueError(f"Failed to create default TemplateBank: {e}")
             
             m_ = SConv2d(bank, stride=stride, padding=padding)
             c2 = bank.templates.shape[0]
