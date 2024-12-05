@@ -23,7 +23,7 @@ class YOLOObjectDetectionDataset(Dataset):
         # Get corresponding label file paths
         self.label_paths = sorted(glob.glob(os.path.join(self.label_dir, "*.txt")))
 
-        assert len(self.image_paths) == len(self.label_paths), "Number of images and labels must be the same."
+        assert len(self.image_paths) == len(self.label_paths), f"{self.image_paths}Number of images and labels must be the same{self.label_paths}."
 
     def __len__(self):
         return len(self.image_paths)
