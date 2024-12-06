@@ -228,7 +228,9 @@ class YOLOKDLoss(nn.Module):
             total_loss (torch.Tensor): Combined loss value
         """
         # Compute the standard loss using v8DetectionLoss (hard labels)
+        print('inside loss')
         hard_loss_value, hard_loss_components = self.hard_loss(student_preds, batch)
+        print('after hard loss')
 
         # Process student and teacher predictions
         # Both are tuples: (features, predictions)
@@ -238,6 +240,7 @@ class YOLOKDLoss(nn.Module):
         # Flatten the predictions for KD
         # Assuming predictions are of shape (batch_size, num_classes + 4*reg_max, H, W)
         # Reshape to (batch_size, num_predictions, num_classes + 4*reg_max)
+        print('reshaping')
         batch_size = student_output.size(0)
         num_predictions = student_output.size(2) * student_output.size(3)
         student_pred_scores = student_output.permute(0, 2, 3, 1).reshape(batch_size, num_predictions, -1)
@@ -250,10 +253,12 @@ class YOLOKDLoss(nn.Module):
         teacher_cls = teacher_pred_scores[:, :, :num_classes]
 
         # Knowledge Distillation on classification logits
+        print('prekd')
         soft_teacher_cls = F.softmax(teacher_cls / self.temperature, dim=-1)
         soft_student_cls = F.log_softmax(student_cls / self.temperature, dim=-1)
 
         # Compute KD loss using KL divergence
+        print('kding')
         kd_loss_cls = self.kldiv(soft_student_cls, soft_teacher_cls) * (self.temperature ** 2)
 
         # Optionally, perform KD on regression or other components
