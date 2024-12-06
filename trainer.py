@@ -39,7 +39,7 @@ def format_for_v8_detection_loss(predictions, num_classes, num_anchors):
         batch_size, _, H, W = pred.shape
 
         # Reshape to [batch_size, num_anchors, num_classes + 5, H, W]
-        pred = pred.view(batch_size, num_anchors, num_classes + 5, H, W)
+        pred = pred.view(batch_size, num_anchors, num_classes + 4, H, W)
         formatted_outputs.append(pred)
 
     return formatted_outputs
