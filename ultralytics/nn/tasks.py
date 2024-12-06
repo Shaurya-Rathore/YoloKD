@@ -995,18 +995,18 @@ def parse_model(d, ch, verbose=True):  # model_dict, input_channels(3)
             m_ = nn.Sequential(*(m(*args) for _ in range(n))) if n > 1 else m(*args)
         if m == "TemplateBank":
             num_templates, in_planes, out_planes, kernel_size = args
-            m_ = TemplateBank(num_templates, in_planes, out_planes, kernel_size)
+            bank = TemplateBank(num_templates, in_planes, out_planes, kernel_size)
             c2 = out_planes  # Update output channels
 
         elif m == "SConv2d":
             stride, padding = args
             
             # Find the most recent TemplateBank
-            bank = None
-            for prev_layer in reversed(layers):
-                if isinstance(prev_layer, TemplateBank):
-                    bank = prev_layer
-                    break
+            #bank = #None
+            #for prev_layer in reversed(layers):
+               # if isinstance(prev_layer, TemplateBank):
+                   # bank = prev_layer
+                    #break
             
             if bank is None:
                 # If no TemplateBank found, create a default one
