@@ -57,19 +57,10 @@ from ultralytics.nn.modules import (
     WorldDetect,
     v10Detect,
     LDConv,
-    SConv2d
+    SConv2d,
+    TemplateBank
 )
-class TemplateBank(nn.Module):
-    def __init__(self, num_templates, in_planes, out_planes, kernel_size):
-        super(TemplateBank, self).__init__()
-        self.coefficient_shape = (num_templates,1,1,1,1)
-        templates = [torch.Tensor(out_planes, in_planes, kernel_size, kernel_size) for _ in range(num_templates)]
-        for i in range(num_templates): 
-            init.kaiming_normal_(templates[i])
-        self.templates = nn.Parameter(torch.stack(templates))
 
-    def forward(self, coefficients):
-        return (self.templates*coefficients).sum(0)
 from ultralytics.utils import DEFAULT_CFG_DICT, DEFAULT_CFG_KEYS, LOGGER, colorstr, emojis, yaml_load
 from ultralytics.utils.checks import check_requirements, check_suffix, check_yaml
 from ultralytics.utils.loss import (
