@@ -966,9 +966,7 @@ def parse_model(d, ch, verbose=True):  # model_dict, input_channels(3)
                 args.insert(2, n)  # number of repeats
                 n = 1
             if m is SConv2d:
-                bank_arg = bank
-                # Add c1 (input channels) as the first argument
-                args = [bank_arg, c1, c2] + args
+                args = [bank, *args]
         elif m is AIFI:
             args = [ch[f], *args]
         elif m in {HGStem, HGBlock}:
