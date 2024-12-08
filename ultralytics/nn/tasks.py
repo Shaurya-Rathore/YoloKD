@@ -966,7 +966,15 @@ def parse_model(d, ch, verbose=True):  # model_dict, input_channels(3)
                 args.insert(2, n)  # number of repeats
                 n = 1
             if m is SConv2d:
-                args = [bank, *args]
+                # Check if stride and padding are provided, otherwise use defaults
+                if len(args) > 2:
+                    stride = args[2] if len(args) > 2 else 1
+                    padding = args[3] if len(args) > 3 else 1
+                else:
+                    stride, padding = 1, 1
+                
+                # Create SConv2d with bank and optional stride/padding
+                args = [bank, stride, padding]
         elif m is AIFI:
             args = [ch[f], *args]
         elif m in {HGStem, HGBlock}:
