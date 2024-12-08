@@ -57,9 +57,19 @@ from ultralytics.nn.modules import (
     WorldDetect,
     v10Detect,
     LDConv,
-    TemplateBank,
     SConv2d
 )
+class TemplateBank(nn.Module):
+    def __init__(self, num_templates, in_planes, out_planes, kernel_size):
+        super(TemplateBank, self).__init__()
+        self.coefficient_shape = (num_templates,1,1,1,1)
+        templates = [torch.Tensor(out_planes, in_planes, kernel_size, kernel_size) for _ in range(num_templates)]
+        for i in range(num_templates): 
+            init.kaiming_normal_(templates[i])
+        self.templates = nn.Parameter(torch.stack(templates))
+
+    def forward(self, coefficients):
+        return (self.templates*coefficients).sum(0)
 from ultralytics.utils import DEFAULT_CFG_DICT, DEFAULT_CFG_KEYS, LOGGER, colorstr, emojis, yaml_load
 from ultralytics.utils.checks import check_requirements, check_suffix, check_yaml
 from ultralytics.utils.loss import (
@@ -916,37 +926,6 @@ def parse_model(d, ch, verbose=True):  # model_dict, input_channels(3)
                     args[j] = locals()[a] if a in locals() else ast.literal_eval(a)
 
         n = n_ = max(round(n * depth), 1) if n > 1 else n  # depth gain
-        if m == "SConv2d":
-            stride, padding = args
-            
-            # Find the most recent TemplateBank
-            #bank = #None
-            #for prev_layer in reversed(layers):
-               # if isinstance(prev_layer, TemplateBank):
-                   # bank = prev_layer
-                    #break
-            
-            if bank is None:
-                # If no TemplateBank found, create a default one
-                LOGGER.warning("No valid TemplateBank found; creating a default TemplateBank.")
-                try:
-                    bank = TemplateBank(3, ch[f], ch[f], 3)
-                except Exception as e:
-                    raise ValueError(f"Failed to create default TemplateBank: {e}")
-            
-            m_ = SConv2d(bank, stride=stride, padding=padding)
-            c2 = bank.templates.shape[0]
-            t = str(m)[8:-2].replace("__main__.", "")  # module type
-            m.np = sum(x.numel() for x in m_.parameters())  # number params
-            m_.i, m_.f, m_.type = i, f, t  # attach index, 'from' index, type
-            if verbose:
-                LOGGER.info(f"{i:>3}{str(f):>20}{n_:>3}{m.np:10.0f}  {t:<45}{str(args):<30}")  # print
-            save.extend(x % i for x in ([f] if isinstance(f, int) else f) if x != -1)  # append to savelist
-            layers.append(m_)
-            if i == 0:
-                ch = []
-            ch.append(c2)
-            continue 
         if m in {
             Classify,
             Conv,
@@ -980,6 +959,7 @@ def parse_model(d, ch, verbose=True):  # model_dict, input_channels(3)
             SCDown,
             C2fCIB,
             LDConv,
+            SConv2d
         }:
             c1, c2 = ch[f], args[0]
             if c2 != nc:  # if c2 not equal to number of classes (i.e. for Classify() output)
@@ -994,6 +974,10 @@ def parse_model(d, ch, verbose=True):  # model_dict, input_channels(3)
             if m in {BottleneckCSP, C1, C2, C2f, C2fOutputs, C2fAttn, C3, C3TR, C3Ghost, C3x, RepC3, C2fCIB}:
                 args.insert(2, n)  # number of repeats
                 n = 1
+            if m is SConv2d:
+                bank_arg = bank
+                # Add c1 (input channels) as the first argument
+                args = [bank_arg, c1, c2] + args
         elif m is AIFI:
             args = [ch[f], *args]
         elif m in {HGStem, HGBlock}:
@@ -1022,11 +1006,6 @@ def parse_model(d, ch, verbose=True):  # model_dict, input_channels(3)
             c2 = ch[f[-1]]
         else:
             c2 = ch[f]
-        
-        if m == "TemplateBank":
-            num_templates, in_planes, out_planes, kernel_size = args
-            bank = TemplateBank(num_templates, in_planes, out_planes, kernel_size)
-            c2 = out_planes  # Update output channels
         m_ = nn.Sequential(*(m(*args) for _ in range(n))) if n > 1 else m(*args)    
         t = str(m)[8:-2].replace("__main__.", "")  # module type
         m.np = sum(x.numel() for x in m_.parameters())  # number params
