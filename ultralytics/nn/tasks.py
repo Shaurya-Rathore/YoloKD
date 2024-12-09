@@ -908,14 +908,13 @@ def parse_model(d, ch, verbose=True):  # model_dict, input_channels(3)
         LOGGER.info(f"\n{'':>3}{'from':>20}{'n':>3}{'params':>10}  {'module':<45}{'arguments':<30}")
     ch = [ch]
     layers, save, c2 = [], [], ch[-1]  # layers, savelist, ch out
-    bank = TemplateBank(3,256,256,3)
+    bank = None
     for i, (f, n, m, args) in enumerate(d["backbone"] + d["head"]):  # from, number, module, args
         m = getattr(torch.nn, m[3:]) if "nn." in m else globals()[m]  # get module
         for j, a in enumerate(args):
             if isinstance(a, str):
                 with contextlib.suppress(ValueError):
                     args[j] = locals()[a] if a in locals() else ast.literal_eval(a)
-
         n = n_ = max(round(n * depth), 1) if n > 1 else n  # depth gain
         if m in {
             Classify,
@@ -967,20 +966,14 @@ def parse_model(d, ch, verbose=True):  # model_dict, input_channels(3)
                 n = 1
             if m is SConv2d:
                 # Check if stride and padding are provided, otherwise use defaults
-                if len(args) > 2:
-                    stride = args[2] if len(args) > 2 else 1
-                    padding = args[3] if len(args) > 3 else 1
-                else:
-                    stride, padding = 1, 1
+                stride, padding = args[2:4] if len(args) > 3 else (1, 1)
                 in_planes = ch[f]  # Get the input channels for this layer
                 out_planes = args[0] 
 
                 # Create or update the TemplateBank
                 if bank is None or bank.templates.size(1) != in_planes:
                     bank = TemplateBank(3, in_planes, out_planes, 3)
-                c2 = bank.templates.size(0)
-                # Create SConv2d with bank and optional stride/padding
-                m_ = nn.Conv2d(in_planes, out_planes, kernel_size=3, stride=1, padding=1)
+                c2 = out_planes
                 args = [bank, stride, padding]
         elif m is AIFI:
             args = [ch[f], *args]
