@@ -973,13 +973,14 @@ def parse_model(d, ch, verbose=True):  # model_dict, input_channels(3)
                 else:
                     stride, padding = 1, 1
                 in_planes = ch[f]  # Get the input channels for this layer
-                out_planes = 256  # Fixed output channels for TemplateBank
+                out_planes = args[0] 
 
                 # Create or update the TemplateBank
                 if bank is None or bank.templates.size(1) != in_planes:
                     bank = TemplateBank(3, in_planes, out_planes, 3)
                 c2 = bank.templates.size(0)
                 # Create SConv2d with bank and optional stride/padding
+                m_ = nn.Conv2d(in_planes, out_planes, kernel_size=3, stride=1, padding=1)
                 args = [bank, stride, padding]
         elif m is AIFI:
             args = [ch[f], *args]
