@@ -8,33 +8,32 @@ backbone:
   # [from, repeats, module, args]
   - [-1, 1, Conv, [64, 3, 2]]  # 0-P1/2
   - [-1, 1, Conv, [128, 3, 2]]  # 1-P2/4
-  - [-1, 3, C2f, [128, True]]
+  - [-1, 3, C2f, [128, True]]  # Output: 128 channels
   - [-1, 1, Conv, [256, 3, 2]]  # 3-P3/8
-  - [-1, 6, C2f, [256, True]]
-  - [-1, 6, SConv2d, [256, 256, 1, 1]]  # Replace Conv with SConv2d (in=256, out=256)
+  - [-1, 6, C2f, [256, True]]  # Output: 256 channels
+  - [-1, 3, SConv2d, [256, 256, 1, 1]]  # (in=256, out=256)
   - [-1, 1, Conv, [512, 3, 2]]  # 5-P4/16
-  - [-1, 6, SConv2d, [512, 512, 1, 1]]  # Add soft sharing (in=512, out=512)
+  - [-1, 3, SConv2d, [512, 512, 1, 1]]  # Add soft sharing (in=512, out=512)
   - [-1, 1, Conv, [1024, 3, 2]]  # 7-P5/32
   - [-1, 3, SConv2d, [1024, 1024, 1, 1]]  # Add soft sharing (in=1024, out=1024)
-  - [-1, 1, SPPF, [1024, 5]]  # 9
+  - [-1, 1, SPPF, [1024, 5]]  # Output: 1024 channels
 
 # YOLOv8.0n head with TemplateBank and SConv2d
 head:
-  - [-1, 1, nn.Upsample, [None, 2, "nearest"]]
-  - [[-1, 6], 1, Concat, [1]]  # cat backbone P4
-  - [-1, 3, SConv2d, [512, 512, 1, 1]]  # Replace Conv with SConv2d for P4 (in=512, out=512)
+  - [-1, 1, nn.Upsample, [None, 2, "nearest"]]  # Upsample to P4 size
+  - [[-1, 6], 1, Concat, [1]]  # Concatenate with backbone P4 (in=512+512)
+  - [-1, 3, SConv2d, [512, 512, 1, 1]]  # P4: (in=512, out=512)
 
-  - [-1, 1, nn.Upsample, [None, 2, "nearest"]]
-  - [[-1, 4], 1, Concat, [1]]  # cat backbone P3
-  - [-1, 3, SConv2d, [256, 256, 1, 1]]  # Replace Conv with SConv2d for P3 (in=256, out=256)
+  - [-1, 1, nn.Upsample, [None, 2, "nearest"]]  # Upsample to P3 size
+  - [[-1, 4], 1, Concat, [1]]  # Concatenate with backbone P3 (in=256+256)
+  - [-1, 3, SConv2d, [256, 256, 1, 1]]  # P3: (in=256, out=256)
 
-  - [-1, 1, SConv2d, [256, 256, 1, 1]]  # (in=256, out=256)
-  - [[-1, 12], 1, Concat, [1]]  # cat head P4
-  - [-1, 3, SConv2d, [512, 512, 1, 1]]  # Replace Conv with SConv2d for P4 (in=512, out=512)
+  - [-1, 1, SConv2d, [256, 256, 1, 1]]  # P3: (in=256, out=256)
+  - [[-1, 12], 1, Concat, [1]]  # Concatenate with head P4 (in=512+512)
+  - [-1, 3, SConv2d, [512, 512, 1, 1]]  # P4: (in=512, out=512)
 
-  - [-1, 1, SConv2d, [512, 512, 1, 1]]  # (in=512, out=512)
-  - [[-1, 9], 1, Concat, [1]]  # cat head P5
-  - [-1, 3, SConv2d, [1024, 1024, 1, 1]]  # Replace Conv with SConv2d for P5 (in=1024, out=1024)
+  - [-1, 1, SConv2d, [512, 512, 1, 1]]  # P4: (in=512, out=512)
+  - [[-1, 9], 1, Concat, [1]]  # Concatenate with head P5 (in=1024+1024)
+  - [-1, 3, SConv2d, [1024, 1024, 1, 1]]  # P5: (in=1024, out=1024)
 
   - [[15, 18, 21], 1, Detect, [nc]]  # Detect(P3, P4, P5)
-
