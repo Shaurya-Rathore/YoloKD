@@ -1002,7 +1002,7 @@ class TemplateBank(nn.Module):
         return (self.templates*coefficients).sum(0)
 
 class SConv2d(nn.Module):
-    def __init__(self, bank, stride=1, padding=1):
+    def __init__(self, bank, stride=1, padding=2):
         super(SConv2d, self).__init__()
         if isinstance(bank, TemplateBank):
             self.bank = bank

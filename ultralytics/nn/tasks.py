@@ -966,7 +966,7 @@ def parse_model(d, ch, verbose=True):  # model_dict, input_channels(3)
                 n = 1
             if m is SConv2d:
                 # Check if stride and padding are provided, otherwise use defaults
-                stride, padding = args[2:4] if len(args) > 3 else (1, 1)
+                stride, padding = args[2:4] if len(args) > 3 else (1, 2)
                 in_planes = ch[f]  # Get the input channels for this layer
                 out_planes = args[0] 
 
