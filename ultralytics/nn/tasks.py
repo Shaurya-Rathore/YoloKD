@@ -909,13 +909,48 @@ def parse_model(d, ch, verbose=True):  # model_dict, input_channels(3)
     ch = [ch]
     layers, save, c2 = [], [], ch[-1]  # layers, savelist, ch out
     bank = None
-    for i, (f, n, m, args) in enumerate(d["backbone"] + d["head"]):  # from, number, module, args
+    def track_shapes(module, input_tensor):
+        """Wrapper to track input and output shapes for a module."""
+        try:
+            # Create a dummy input tensor if not provided
+            if input_tensor is None:
+                input_tensor = torch.randn(1, ch[0], 224, 224)
+            
+            # If input is a list, convert to tuple
+            if isinstance(input_tensor, list):
+                input_tensor = [torch.randn(1, c, 224, 224) for c in input_tensor]
+            
+            # Pass input through the module
+            with torch.no_grad():
+                if isinstance(module, nn.Sequential):
+                    output = module(input_tensor)
+                else:
+                    output = module(input_tensor)
+                
+                # Handle different output types
+                if isinstance(output, (list, tuple)):
+                    output_shapes = [o.shape if isinstance(o, torch.Tensor) else None for o in output]
+                else:
+                    output_shapes = output.shape if isinstance(output, torch.Tensor) else None
+                
+                input_shapes = input_tensor.shape if isinstance(input_tensor, torch.Tensor) else \
+                    [t.shape for t in input_tensor]
+                
+                return input_shapes, output_shapes
+        except Exception as e:
+            print(f"Error tracking shapes for {module}: {e}")
+            return None, None
+
+    for i, (f, n, m, args) in enumerate(d["backbone"] + d["head"]):  
         m = getattr(torch.nn, m[3:]) if "nn." in m else globals()[m]  # get module
+        
         for j, a in enumerate(args):
             if isinstance(a, str):
                 with contextlib.suppress(ValueError):
                     args[j] = locals()[a] if a in locals() else ast.literal_eval(a)
+        
         n = n_ = max(round(n * depth), 1) if n > 1 else n  # depth gain
+        
         if m in {
             Classify,
             Conv,
@@ -1003,18 +1038,56 @@ def parse_model(d, ch, verbose=True):  # model_dict, input_channels(3)
             c2 = ch[f[-1]]
         else:
             c2 = ch[f]
+
+        # Create the module
         m_ = nn.Sequential(*(m(*args) for _ in range(n))) if n > 1 else m(*args)    
+        
+        # Determine input tensor based on 'from' index
+        input_tensor = None
+        if isinstance(f, int):
+            input_tensor = torch.randn(1, ch[f], 224, 224)
+        elif isinstance(f, list):
+            input_tensor = [torch.randn(1, ch[x], 224, 224) for x in f]
+        
+        # Track shapes
+        input_shapes, output_shapes = track_shapes(m_, input_tensor)
+        
+        # Store layer information
+        layer_info.append({
+            'index': i,
+            'module': str(m_),
+            'from': f,
+            'input_shapes': input_shapes,
+            'output_shapes': output_shapes,
+            'args': args
+        })
+        
         t = str(m)[8:-2].replace("__main__.", "")  # module type
         m.np = sum(x.numel() for x in m_.parameters())  # number params
         m_.i, m_.f, m_.type = i, f, t  # attach index, 'from' index, type
+        
         if verbose:
             LOGGER.info(f"{i:>3}{str(f):>20}{n_:>3}{m.np:10.0f}  {t:<45}{str(args):<30}")  # print
+        
         save.extend(x % i for x in ([f] if isinstance(f, int) else f) if x != -1)  # append to savelist
         layers.append(m_)
+        
         if i == 0:
             ch = []
         ch.append(c2)
+    
+    # Print out layer information
+    print("\nLayer Shape Information:")
+    for layer in layer_info:
+        print(f"Layer {layer['index']}:")
+        print(f"  Module: {layer['module']}")
+        print(f"  From: {layer['from']}")
+        print(f"  Input Shapes: {layer['input_shapes']}")
+        print(f"  Output Shapes: {layer['output_shapes']}")
+        print(f"  Args: {layer['args']}\n")
+    
     return nn.Sequential(*layers), sorted(save)
+
     
 def yaml_model_load(path):
     """Load a YOLOv8 model from a YAML file."""
