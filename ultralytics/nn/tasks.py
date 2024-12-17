@@ -882,12 +882,11 @@ def attempt_load_one_weight(weight, device=None, inplace=True, fuse=False):
     # Return model and ckpt
     return model, ckpt
 
-
 def parse_model(d, ch, verbose=True):  # model_dict, input_channels(3)
     """Parse a YOLO model.yaml dictionary into a PyTorch model."""
     import ast
     import contextlib
-    layer_info = []
+
     # Args
     max_channels = float("inf")
     nc, act, scales = (d.get(x) for x in ("nc", "activation", "scales"))
@@ -909,86 +908,31 @@ def parse_model(d, ch, verbose=True):  # model_dict, input_channels(3)
     ch = [ch]
     layers, save, c2 = [], [], ch[-1]  # layers, savelist, ch out
     bank = None
-    def track_shapes(module, input_tensor):
-        """Wrapper to track input and output shapes for a module."""
-        try:
-            # Create a dummy input tensor if not provided
-            if input_tensor is None:
-                input_tensor = torch.randn(1, ch[0], 224, 224)
-            
-            # If input is a list, convert to tuple
-            if isinstance(input_tensor, list):
-                input_tensor = [torch.randn(1, c, 224, 224) for c in input_tensor]
-            
-            # Pass input through the module
-            with torch.no_grad():
-                if isinstance(module, nn.Sequential):
-                    output = module(input_tensor)
-                else:
-                    output = module(input_tensor)
-                
-                # Handle different output types
-                if isinstance(output, (list, tuple)):
-                    output_shapes = [o.shape if isinstance(o, torch.Tensor) else None for o in output]
-                else:
-                    output_shapes = output.shape if isinstance(output, torch.Tensor) else None
-                
-                input_shapes = input_tensor.shape if isinstance(input_tensor, torch.Tensor) else \
-                    [t.shape for t in input_tensor]
-                
-                return input_shapes, output_shapes
-        except Exception as e:
-            print(f"Error tracking shapes for {module}: {e}")
-            return None, None
-
-    for i, (f, n, m, args) in enumerate(d["backbone"] + d["head"]):  
+    for i, (f, n, m, args) in enumerate(d["backbone"] + d["head"]):  # from, number, module, args
         m = getattr(torch.nn, m[3:]) if "nn." in m else globals()[m]  # get module
-        
         for j, a in enumerate(args):
             if isinstance(a, str):
                 with contextlib.suppress(ValueError):
                     args[j] = locals()[a] if a in locals() else ast.literal_eval(a)
-        
         n = n_ = max(round(n * depth), 1) if n > 1 else n  # depth gain
         
         if m in {
-            Classify,
-            Conv,
-            ConvTranspose,
-            GhostConv,
-            Bottleneck,
-            GhostBottleneck,
-            SPP,
-            SPPF,
-            DWConv,
-            Focus,
-            BottleneckCSP,
-            C1,
-            C2,
-            C2f,
-            C2fOutputs,
-            RepNCSPELAN4,
-            ELAN1,
-            ADown,
-            AConv,
-            SPPELAN,
-            C2fAttn,
-            C3,
-            C3TR,
-            C3Ghost,
-            nn.ConvTranspose2d,
-            DWConvTranspose2d,
-            C3x,
-            RepC3,
-            PSA,
-            SCDown,
-            C2fCIB,
-            LDConv,
-            SConv2d
+            Classify, Conv, ConvTranspose, GhostConv, Bottleneck, 
+            GhostBottleneck, SPP, SPPF, DWConv, Focus, 
+            BottleneckCSP, C1, C2, C2f, C2fOutputs, 
+            RepNCSPELAN4, ELAN1, ADown, AConv, SPPELAN, 
+            C2fAttn, C3, C3TR, C3Ghost, nn.ConvTranspose2d, 
+            DWConvTranspose2d, C3x, RepC3, PSA, SCDown, 
+            C2fCIB, LDConv, SConv2d
         }:
             c1, c2 = ch[f], args[0]
-            if c2 != nc:  # if c2 not equal to number of classes (i.e. for Classify() output)
+            
+            # Preserve more channels for non-classification layers
+            if m is not Classify:
+                c2 = min(c2, max_channels)
+            else:
                 c2 = make_divisible(min(c2, max_channels) * width, 8)
+
             if m is C2fAttn:
                 args[1] = make_divisible(min(args[1], max_channels // 2) * width, 8)  # embed channels
                 args[2] = int(
@@ -996,72 +940,62 @@ def parse_model(d, ch, verbose=True):  # model_dict, input_channels(3)
                 )  # num heads
 
             args = [c1, c2, *args[1:]]
-            if m in {BottleneckCSP, C1, C2, C2f, C2fOutputs, C2fAttn, C3, C3TR, C3Ghost, C3x, RepC3, C2fCIB}:
+            
+            if m in {BottleneckCSP, C1, C2, C2f, C2fOutputs, C2fAttn, 
+                     C3, C3TR, C3Ghost, C3x, RepC3, C2fCIB}:
                 args.insert(2, n)  # number of repeats
                 n = 1
+            
             if m is SConv2d:
-                # Check if stride and padding are provided, otherwise use defaults
                 stride, padding = args[2:4] if len(args) > 3 else (1, 2)
-                in_planes = ch[f]  # Get the input channels for this layer
-                out_planes = args[0] 
-
-                # Create or update the TemplateBank
-                if bank is None or bank.templates.size(1) != in_planes:
-                    bank = TemplateBank(3, in_planes, out_planes, 3)
+                in_planes = ch[f]
+                out_planes = args[0]
+                
+                bank = TemplateBank(3, in_planes, out_planes, 3)
                 c2 = out_planes
-                args = [bank, 1, 1]
+                args = [bank, stride, padding]
+
         elif m is AIFI:
             args = [ch[f], *args]
+        
         elif m in {HGStem, HGBlock}:
             c1, cm, c2 = ch[f], args[0], args[1]
             args = [c1, cm, c2, *args[2:]]
             if m is HGBlock:
                 args.insert(4, n)  # number of repeats
                 n = 1
+        
         elif m is ResNetLayer:
             c2 = args[1] if args[3] else args[1] * 4
+        
         elif m is nn.BatchNorm2d:
             args = [ch[f]]
+        
         elif m is Concat:
             c2 = sum(ch[x] for x in f)
+        
         elif m in {Detect, WorldDetect, Segment, Pose, OBB, ImagePoolingAttn, v10Detect}:
-            args.append([ch[x] for x in f])
-            if m is Segment:
-                args[2] = make_divisible(min(args[2], max_channels) * width, 8)
+            input_channels = [ch[x] for x in f]
+            if len(args) == 1:  # If only number of classes is provided
+                args.extend([input_channels])
+            else:
+                args[1] = input_channels  # Ensure correct channel sizes
+        
         elif m is RTDETRDecoder:  # special case, channels arg must be passed in index 1
             args.insert(1, [ch[x] for x in f])
+        
         elif m is CBLinear:
             c2 = args[0]
             c1 = ch[f]
             args = [c1, c2, *args[1:]]
+        
         elif m is CBFuse:
             c2 = ch[f[-1]]
+        
         else:
             c2 = ch[f]
-
-        # Create the module
+        
         m_ = nn.Sequential(*(m(*args) for _ in range(n))) if n > 1 else m(*args)    
-        
-        # Determine input tensor based on 'from' index
-        input_tensor = None
-        if isinstance(f, int):
-            input_tensor = torch.randn(1, ch[f], 224, 224)
-        elif isinstance(f, list):
-            input_tensor = [torch.randn(1, ch[x], 224, 224) for x in f]
-        
-        # Track shapes
-        input_shapes, output_shapes = track_shapes(m_, input_tensor)
-        
-        # Store layer information
-        layer_info.append({
-            'index': i,
-            'module': str(m_),
-            'from': f,
-            'input_shapes': input_shapes,
-            'output_shapes': output_shapes,
-            'args': args
-        })
-        
         t = str(m)[8:-2].replace("__main__.", "")  # module type
         m.np = sum(x.numel() for x in m_.parameters())  # number params
         m_.i, m_.f, m_.type = i, f, t  # attach index, 'from' index, type
@@ -1076,18 +1010,7 @@ def parse_model(d, ch, verbose=True):  # model_dict, input_channels(3)
             ch = []
         ch.append(c2)
     
-    # Print out layer information
-    print("\nLayer Shape Information:")
-    for layer in layer_info:
-        print(f"Layer {layer['index']}:")
-        print(f"  Module: {layer['module']}")
-        print(f"  From: {layer['from']}")
-        print(f"  Input Shapes: {layer['input_shapes']}")
-        print(f"  Output Shapes: {layer['output_shapes']}")
-        print(f"  Args: {layer['args']}\n")
-    
     return nn.Sequential(*layers), sorted(save)
-
     
 def yaml_model_load(path):
     """Load a YOLOv8 model from a YAML file."""
