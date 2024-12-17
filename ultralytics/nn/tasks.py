@@ -923,17 +923,10 @@ def parse_model(d, ch, verbose=True):  # model_dict, input_channels(3)
             RepNCSPELAN4, ELAN1, ADown, AConv, SPPELAN, 
             C2fAttn, C3, C3TR, C3Ghost, nn.ConvTranspose2d, 
             DWConvTranspose2d, C3x, RepC3, PSA, SCDown, 
-            C2fCIB, LDConv, SConv2d
+            C2fCIB, LDConv
         }:
             c1, c2 = ch[f], args[0]
             
-            if m is SConv2d:
-                stride, padding = args[2:4] if len(args) > 3 else (1, 2)
-                in_planes = ch[f]
-                out_planes = args[0]
-                bank = TemplateBank(3, in_planes, out_planes, 3)
-                args = [bank, stride, padding]
-                
             # Preserve more channels for non-classification layers
             if m is not Classify:
                 c2 = min(c2, max_channels)
@@ -990,6 +983,13 @@ def parse_model(d, ch, verbose=True):  # model_dict, input_channels(3)
         elif m is CBFuse:
             c2 = ch[f[-1]]
         
+        elif m is SConv2d:
+            stride, padding = args[2:4] if len(args) > 3 else (1, 2)
+            in_planes = ch[f]
+            out_planes = args[0]
+            bank = TemplateBank(3, in_planes, out_planes, 3)
+            args = [bank, stride, padding]
+            
         else:
             c2 = ch[f]
         
