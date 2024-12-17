@@ -6,14 +6,14 @@ width_multiple: 0.5  # scales convolution channels
 # YOLOv8.0n backbone with TemplateBank and SConv2d
 backbone:
   # [from, repeats, module, args]
-  - [-1, 1, Conv, [64, 3, 2]]  # 0-P1/2
-  - [-1, 1, Conv, [128, 3, 2]]  # 1-P2/4
+  - [-1, 1, SConv2d, [64, 3, 2]]  # 0-P1/2
+  - [-1, 1, SConv2d, [128, 3, 2]]  # 1-P2/4
   - [-1, 3, C2f, [128, True]]  # Output: 128 channels
-  - [-1, 1, SConv2d, [256, 1, None]]  # (in=256, out=256)
+  - [-1, 1, SConv2d, [256, 1, 2]]  # (in=256, out=256)
   - [-1, 6, C2f, [256, True]]  # Output: 256 channels
-  - [-1, 1, SConv2d, [ 512, 1, None]]  # Add soft sharing (in=512, out=512)
+  - [-1, 1, SConv2d, [ 512, 1, 2]]  # Add soft sharing (in=512, out=512)
   - [-1, 6, C2f, [512, True]]
-  - [-1, 1, SConv2d, [1024, 1, None]]  # Add soft sharing (in=1024, out=1024)
+  - [-1, 1, SConv2d, [1024, 1, 2]]  # Add soft sharing (in=1024, out=1024)
   - [-1, 3, C2f, [1024, True]]
   - [-1, 1, SPPF, [1024, 5]]  # Output: 1024 channels
 
@@ -27,11 +27,11 @@ head:
   - [[-1, 4], 1, Concat, [1]] # cat backbone P3
   - [-1, 3, C2f, [256]] # 15 (P3/8-small)
 
-  - [-1, 1, Conv, [256, 3, 2]]
+  - [-1, 1, SConv2d, [256, 3, 2]]
   - [[-1, 12], 1, Concat, [1]] # cat head P4
   - [-1, 3, C2f, [512]] # 18 (P4/16-medium)
 
-  - [-1, 1, Conv, [512, 3, 2]]
+  - [-1, 1, SConv2d, [512, 3, 2]]
   - [[-1, 9], 1, Concat, [1]] # cat head P5
   - [-1, 3, C2f, [1024]] # 21 (P5/32-large)
 
