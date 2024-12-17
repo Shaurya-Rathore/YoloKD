@@ -950,9 +950,7 @@ def parse_model(d, ch, verbose=True):  # model_dict, input_channels(3)
                 stride, padding = args[2:4] if len(args) > 3 else (1, 2)
                 in_planes = ch[f]
                 out_planes = args[0]
-                
                 bank = TemplateBank(3, in_planes, out_planes, 3)
-                c2 = out_planes
                 args = [bank, stride, padding]
 
         elif m is AIFI:
