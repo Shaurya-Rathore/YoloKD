@@ -927,6 +927,13 @@ def parse_model(d, ch, verbose=True):  # model_dict, input_channels(3)
         }:
             c1, c2 = ch[f], args[0]
             
+            if m is SConv2d:
+                stride, padding = args[2:4] if len(args) > 3 else (1, 2)
+                in_planes = ch[f]
+                out_planes = args[0]
+                bank = TemplateBank(3, in_planes, out_planes, 3)
+                args = [bank, stride, padding]
+                
             # Preserve more channels for non-classification layers
             if m is not Classify:
                 c2 = min(c2, max_channels)
@@ -945,13 +952,6 @@ def parse_model(d, ch, verbose=True):  # model_dict, input_channels(3)
                      C3, C3TR, C3Ghost, C3x, RepC3, C2fCIB}:
                 args.insert(2, n)  # number of repeats
                 n = 1
-            
-            if m is SConv2d:
-                stride, padding = args[2:4] if len(args) > 3 else (1, 2)
-                in_planes = ch[f]
-                out_planes = args[0]
-                bank = TemplateBank(3, in_planes, out_planes, 3)
-                args = [bank, stride, padding]
 
         elif m is AIFI:
             args = [ch[f], *args]
