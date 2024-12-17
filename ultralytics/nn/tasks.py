@@ -1009,7 +1009,7 @@ def parse_model(d, ch, verbose=True):  # model_dict, input_channels(3)
                 if bank is None or bank.templates.size(1) != in_planes:
                     bank = TemplateBank(3, in_planes, out_planes, 3)
                 c2 = out_planes
-                args = [bank, stride, padding]
+                args = [bank, 1, 1]
         elif m is AIFI:
             args = [ch[f], *args]
         elif m in {HGStem, HGBlock}:
