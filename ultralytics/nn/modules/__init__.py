@@ -55,7 +55,8 @@ from .block import (
     ResNetLayer,
     SCDown,
     TemplateBank,
-    SConv2d
+    SConv2d,
+    SC2f
 )
 from .conv import (
     CBAM,
