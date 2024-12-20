@@ -1013,25 +1013,20 @@ class SConv2d(nn.Module):
         return F.conv2d(input, params, stride=self.stride, padding=self.padding)
 
 class SC2f(nn.Module):
-    """Sc2f Implementation using SConv2d."""
-
     def __init__(self, c1, c2, n=1, shortcut=False, g=1, e=0.5, num_templates=4, kernel_size=3):
-        """Initializes a Sc2f layer with SConv2d."""
         super().__init__()
         self.c = int(c2 * e)  # hidden channels
-        self.template_bank = TemplateBank(num_templates, c1, 2 * self.c, kernel_size)
-        self.cv1 = SConv2d(self.template_bank, stride=1, padding=1)  # Using SConv2d
-        self.cv2 = SConv2d(self.template_bank, stride=1, padding=1)  # Using SConv2d
-        self.m = nn.ModuleList(Bottleneck(self.c, self.c, shortcut, g, k=((3, 3), (3, 3)), e=1.0) for _ in range(n))
+        self.template_bank1 = TemplateBank(num_templates, c1, 2 * self.c, kernel_size)
+        self.template_bank2 = TemplateBank(num_templates, 2 * self.c + n * self.c, c2, kernel_size)
+        
+        self.cv1 = SConv2d(self.template_bank1, stride=1, padding=1)
+        self.cv2 = SConv2d(self.template_bank2, stride=1, padding=1)
+        self.m = nn.ModuleList(
+            Bottleneck(self.c, self.c, shortcut, g, k=((3, 3), (3, 3)), e=1.0) 
+            for _ in range(n)
+        )
 
     def forward(self, x):
-        """Forward pass through Sc2f layer."""
         y = list(self.cv1(x).chunk(2, 1))
-        y.extend(m(y[-1]) for m in self.m)
-        return self.cv2(torch.cat(y, 1))
-
-    def forward_split(self, x):
-        """Forward pass using split() instead of chunk()."""
-        y = list(self.cv1(x).split((self.c, self.c), 1))
         y.extend(m(y[-1]) for m in self.m)
         return self.cv2(torch.cat(y, 1))
