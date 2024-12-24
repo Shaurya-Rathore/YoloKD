@@ -1016,17 +1016,32 @@ class SC2f(nn.Module):
     def __init__(self, c1, c2, n=1, shortcut=False, g=1, e=0.5, num_templates=4, kernel_size=3):
         super().__init__()
         self.c = int(c2 * e)  # hidden channels
+        
+        # TemplateBank and SConv2d layers
         self.template_bank1 = TemplateBank(num_templates, c1, 2 * self.c, kernel_size)
         self.template_bank2 = TemplateBank(num_templates, 2 * self.c + n * self.c, c2, kernel_size)
-        
         self.cv1 = SConv2d(self.template_bank1, stride=1, padding=1)
         self.cv2 = SConv2d(self.template_bank2, stride=1, padding=1)
+        
+        # Bottleneck layers
         self.m = nn.ModuleList(
             Bottleneck(self.c, self.c, shortcut, g, k=((3, 3), (3, 3)), e=1.0) 
             for _ in range(n)
         )
 
     def forward(self, x):
-        y = list(self.cv1(x).chunk(2, 1))
-        y.extend(m(y[-1]) for m in self.m)
-        return self.cv2(torch.cat(y, 1))
+        """
+        Forward pass for SC2f.
+        """
+        # First SConv2d layer
+        y = list(self.cv1(x).chunk(2, 1))  # Chunk into two parts along channel dimension
+        
+        # Bottleneck layers
+        for m in self.m:
+            y.append(m(y[-1]))  # Feed the last element through each bottleneck
+        
+        # Concatenate all outputs
+        concat_y = torch.cat(y, dim=1)
+        
+        # Pass through the second SConv2d layer
+        return self.cv2(concat_y)
