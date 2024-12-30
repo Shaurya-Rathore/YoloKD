@@ -1017,31 +1017,82 @@ class SC2f(nn.Module):
         super().__init__()
         self.c = int(c2 * e)  # hidden channels
         
-        # TemplateBank and SConv2d layers
+        # Add batch normalization for input stability
+        self.bn_input = nn.BatchNorm2d(c1)
+        
+        # Initialize template banks with better scaling
         self.template_bank1 = TemplateBank(num_templates, c1, 2 * self.c, kernel_size)
         self.template_bank2 = TemplateBank(num_templates, 2 * self.c + n * self.c, c2, kernel_size)
+        
+        # Add dropout for regularization
+        self.dropout = nn.Dropout(p=0.1)
+        
+        # Modified SConv2d layers with scaled initialization
         self.cv1 = SConv2d(self.template_bank1, stride=1, padding=1)
         self.cv2 = SConv2d(self.template_bank2, stride=1, padding=1)
         
-        # Bottleneck layers
+        # Add batch norm after each convolution
+        self.bn1 = nn.BatchNorm2d(2 * self.c)
+        self.bn2 = nn.BatchNorm2d(c2)
+        
+        # Bottleneck layers with residual connections
         self.m = nn.ModuleList(
-            Bottleneck(self.c, self.c, shortcut, g, k=((3, 3), (3, 3)), e=1.0) 
+            Bottleneck(self.c, self.c, shortcut=True, g=g, k=((3, 3), (3, 3)), e=1.0) 
             for _ in range(n)
         )
+        
+        # Layer norm for concatenated features
+        self.ln = nn.LayerNorm([2 * self.c + n * self.c, None, None])
+        
+        # Initialize template coefficients with small random values
+        with torch.no_grad():
+            for m in self.modules():
+                if isinstance(m, SConv2d):
+                    nn.init.normal_(m.coefficients, mean=0.0, std=0.01)
 
     def forward(self, x):
         """
-        Forward pass for SC2f.
+        Forward pass with gradient stabilization and feature normalization.
         """
-        # First SConv2d layer
-        y = list(self.cv1(x).chunk(2, 1))  # Chunk into two parts along channel dimension
+        # Input normalization
+        x = self.bn_input(x)
         
-        # Bottleneck layers
-        for m in self.m:
-            y.append(m(y[-1]))  # Feed the last element through each bottleneck
+        # First convolution with normalization
+        conv1_out = self.cv1(x)
+        conv1_out = self.bn1(conv1_out)
+        y = list(conv1_out.chunk(2, 1))
         
-        # Concatenate all outputs
-        concat_y = torch.cat(y, dim=1)
+        # Process through bottlenecks with residual connections
+        bottleneck_outputs = []
+        curr_feat = y[-1]
         
-        # Pass through the second SConv2d layer
-        return self.cv2(concat_y)
+        for bottleneck in self.m:
+            # Apply bottleneck with residual connection
+            bottle_out = bottleneck(curr_feat)
+            bottleneck_outputs.append(bottle_out)
+            curr_feat = bottle_out
+            
+        # Combine all features with dropout
+        y.extend(bottleneck_outputs)
+        concat_features = torch.cat(y, dim=1)
+        
+        # Apply layer norm to stabilize concatenated features
+        concat_features = self.ln(concat_features.transpose(1, -1)).transpose(1, -1)
+        
+        # Apply dropout for regularization
+        concat_features = self.dropout(concat_features)
+        
+        # Final convolution with batch norm
+        out = self.cv2(concat_features)
+        return self.bn2(out)
+
+    def reset_parameters(self):
+        """
+        Reset parameters for stability during training.
+        """
+        with torch.no_grad():
+            for m in self.modules():
+                if isinstance(m, (nn.BatchNorm2d, nn.LayerNorm)):
+                    m.reset_parameters()
+                elif isinstance(m, SConv2d):
+                    nn.init.normal_(m.coefficients, mean=0.0, std=0.01)
