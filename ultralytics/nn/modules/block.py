@@ -1020,14 +1020,11 @@ class SC2f(nn.Module):
         # Add batch normalization for input stability
         self.bn_input = nn.BatchNorm2d(c1)
         
-        # Initialize template banks with better scaling
+        # Initialize template banks
         self.template_bank1 = TemplateBank(num_templates, c1, 2 * self.c, kernel_size)
         self.template_bank2 = TemplateBank(num_templates, 2 * self.c + n * self.c, c2, kernel_size)
         
-        # Add dropout for regularization
-        self.dropout = nn.Dropout(p=0.1)
-        
-        # Modified SConv2d layers with scaled initialization
+        # Modified SConv2d layers
         self.cv1 = SConv2d(self.template_bank1, stride=1, padding=1)
         self.cv2 = SConv2d(self.template_bank2, stride=1, padding=1)
         
@@ -1035,25 +1032,41 @@ class SC2f(nn.Module):
         self.bn1 = nn.BatchNorm2d(2 * self.c)
         self.bn2 = nn.BatchNorm2d(c2)
         
-        # Bottleneck layers with residual connections
+        # Bottleneck layers
         self.m = nn.ModuleList(
             Bottleneck(self.c, self.c, shortcut=True, g=g, k=((3, 3), (3, 3)), e=1.0) 
             for _ in range(n)
         )
         
-        # Layer norm for concatenated features
-        self.ln = nn.LayerNorm([2 * self.c + n * self.c, None, None])
+        # Channel attention
+        self.channel_attention = nn.Sequential(
+            nn.AdaptiveAvgPool2d(1),
+            nn.Conv2d(2 * self.c + n * self.c, 2 * self.c + n * self.c, 1),
+            nn.SiLU(),
+            nn.Conv2d(2 * self.c + n * self.c, 2 * self.c + n * self.c, 1),
+            nn.Sigmoid()
+        )
         
-        # Initialize template coefficients with small random values
+        # Initialize parameters
+        self._init_weights()
+
+    def _init_weights(self):
+        """Initialize weights for better training stability"""
         with torch.no_grad():
+            # Initialize template coefficients
             for m in self.modules():
                 if isinstance(m, SConv2d):
                     nn.init.normal_(m.coefficients, mean=0.0, std=0.01)
+                elif isinstance(m, nn.Conv2d):
+                    nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+                    if m.bias is not None:
+                        nn.init.constant_(m.bias, 0)
+                elif isinstance(m, nn.BatchNorm2d):
+                    nn.init.constant_(m.weight, 1)
+                    nn.init.constant_(m.bias, 0)
 
     def forward(self, x):
-        """
-        Forward pass with gradient stabilization and feature normalization.
-        """
+        """Forward pass with improved feature normalization"""
         # Input normalization
         x = self.bn_input(x)
         
@@ -1062,37 +1075,27 @@ class SC2f(nn.Module):
         conv1_out = self.bn1(conv1_out)
         y = list(conv1_out.chunk(2, 1))
         
-        # Process through bottlenecks with residual connections
+        # Process through bottlenecks
         bottleneck_outputs = []
         curr_feat = y[-1]
         
         for bottleneck in self.m:
-            # Apply bottleneck with residual connection
             bottle_out = bottleneck(curr_feat)
             bottleneck_outputs.append(bottle_out)
             curr_feat = bottle_out
             
-        # Combine all features with dropout
+        # Combine all features
         y.extend(bottleneck_outputs)
         concat_features = torch.cat(y, dim=1)
         
-        # Apply layer norm to stabilize concatenated features
-        concat_features = self.ln(concat_features.transpose(1, -1)).transpose(1, -1)
-        
-        # Apply dropout for regularization
-        concat_features = self.dropout(concat_features)
+        # Apply channel attention
+        attention = self.channel_attention(concat_features)
+        concat_features = concat_features * attention
         
         # Final convolution with batch norm
         out = self.cv2(concat_features)
         return self.bn2(out)
 
     def reset_parameters(self):
-        """
-        Reset parameters for stability during training.
-        """
-        with torch.no_grad():
-            for m in self.modules():
-                if isinstance(m, (nn.BatchNorm2d, nn.LayerNorm)):
-                    m.reset_parameters()
-                elif isinstance(m, SConv2d):
-                    nn.init.normal_(m.coefficients, mean=0.0, std=0.01)
+        """Reset parameters for stability during training"""
+        self._init_weights()
