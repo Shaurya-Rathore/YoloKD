@@ -56,7 +56,9 @@ from .block import (
     SCDown,
     TemplateBank,
     SConv2d,
-    SC2f
+    SC2f,
+    ESC2f,
+    EBottleneck
 )
 from .conv import (
     CBAM,
@@ -159,4 +161,7 @@ __all__ = (
     "SCDown",
     "TemplateBank",
     "SConv2d",
+    "SC2f",
+    "ESC2f",
+    "EBottleneck"
 )

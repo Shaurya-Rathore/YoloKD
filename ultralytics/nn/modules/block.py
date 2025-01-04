@@ -1099,3 +1099,74 @@ class SC2f(nn.Module):
     def reset_parameters(self):
         """Reset parameters for stability during training"""
         self._init_weights()
+
+class ESC2f(nn.Module):
+    def __init__(self, c1, c2, n=1, shortcut=False, g=1, e=0.5, num_templates=4, kernel_size=3):
+        super().__init__()
+        self.c = int(c2 * e)
+        
+        # 1. Share template bank between cv1 and cv2 to reduce parameters
+        self.shared_template_bank = TemplateBank(
+            num_templates=num_templates,
+            in_channels=max(c1, 2 * self.c + n * self.c),  # Use maximum required channels
+            out_channels=max(2 * self.c, c2),  # Use maximum required channels
+            kernel_size=kernel_size
+        )
+        
+        # 2. Use shared templates with different coefficients
+        self.cv1 = SConv2d(self.shared_template_bank, stride=1, padding=1)
+        self.cv2 = SConv2d(self.shared_template_bank, stride=1, padding=1)
+        
+        # 3. Replace batch norm with group norm for fewer parameters
+        self.gn1 = nn.GroupNorm(8, 2 * self.c)
+        self.gn2 = nn.GroupNorm(8, c2)
+        
+        # 4. Efficient bottleneck with reduced parameters
+        self.m = nn.ModuleList(
+            EBottleneck(
+                self.c, 
+                self.c,
+                shortcut=True,
+                g=g * 2,  # Increase groups for parameter reduction
+                e=0.5     # Reduce expansion ratio
+            ) for _ in range(n)
+        )
+        
+        # 5. Lightweight channel attention using depth-wise separable convolutions
+        self.channel_attention = nn.Sequential(
+            nn.AdaptiveAvgPool2d(1),
+            # Depth-wise
+            nn.Conv2d(2 * self.c + n * self.c, 2 * self.c + n * self.c, 1, groups=2 * self.c + n * self.c),
+            nn.SiLU(),
+            # Point-wise
+            nn.Conv2d(2 * self.c + n * self.c, 2 * self.c + n * self.c, 1),
+            nn.Sigmoid()
+        )
+
+    def forward(self, x):
+        # Forward pass with reduced intermediate feature storage
+        conv1_out = self.gn1(self.cv1(x))
+        y = list(conv1_out.chunk(2, 1))
+        
+        # Process through bottlenecks with in-place operations
+        curr_feat = y[-1]
+        for bottleneck in self.m:
+            curr_feat = bottleneck(curr_feat)
+            y.append(curr_feat)
+        
+        # Efficient concatenation and attention
+        concat_features = torch.cat(y, dim=1)
+        concat_features *= self.channel_attention(concat_features)
+        
+        return self.gn2(self.cv2(concat_features))
+
+class EBottleneck(nn.Module):
+    def __init__(self, c1, c2, shortcut=True, g=1, e=0.5):
+        super().__init__()
+        c_ = int(c2 * e)
+        self.cv1 = nn.Conv2d(c1, c_, 1, 1, groups=max(1, c1 // 16))  # Group conv for reduction
+        self.cv2 = nn.Conv2d(c_, c2, 3, 1, padding=1, groups=max(g, c_ // 16))
+        self.shortcut = shortcut and c1 == c2
+
+    def forward(self, x):
+        return x + self.cv2(self.cv1(x)) if self.shortcut else self.cv2(self.cv1(x))
