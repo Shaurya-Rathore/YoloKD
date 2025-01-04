@@ -1108,8 +1108,8 @@ class ESC2f(nn.Module):
         # 1. Share template bank between cv1 and cv2 to reduce parameters
         self.shared_template_bank = TemplateBank(
             num_templates=num_templates,
-            in_channels=max(c1, 2 * self.c + n * self.c),  # Use maximum required channels
-            out_channels=max(2 * self.c, c2),  # Use maximum required channels
+            in_planes=max(c1, 2 * self.c + n * self.c),  # Use maximum required channels
+            out_planes=max(2 * self.c, c2),  # Use maximum required channels
             kernel_size=kernel_size
         )
         
