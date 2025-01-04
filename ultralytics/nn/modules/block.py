@@ -1103,62 +1103,94 @@ class SC2f(nn.Module):
 class ESC2f(nn.Module):
     def __init__(self, c1, c2, n=1, shortcut=False, g=1, e=0.5, num_templates=4, kernel_size=3):
         super().__init__()
-        self.c = int(c2 * e)
+        self.c = int(c2 * e)  # hidden channels
         
-        # 1. Share template bank between cv1 and cv2 to reduce parameters
-        self.shared_template_bank = TemplateBank(
-            num_templates=num_templates,
-            in_planes=c1,  
-            out_planes=max(2 * self.c, c2),  # Use maximum required channels
+        # Create template banks with reduced templates and optimized dimensions
+        self.template_bank1 = TemplateBank(
+            num_templates=max(2, num_templates // 2),  # Reduce number of templates
+            in_planes=c1,
+            out_planes=self.c * 2,  # Reduce output planes
             kernel_size=kernel_size
         )
         
-        # 2. Use shared templates with different coefficients
-        self.cv1 = SConv2d(self.shared_template_bank, stride=1, padding=1)
-        self.cv2 = SConv2d(self.shared_template_bank, stride=1, padding=1)
+        # Second template bank with reduced dimensions
+        self.template_bank2 = TemplateBank(
+            num_templates=max(2, num_templates // 2),
+            in_planes=2 * self.c + n * self.c,
+            out_planes=c2,
+            kernel_size=1  # Use 1x1 conv for final fusion to reduce parameters
+        )
         
-        # 3. Replace batch norm with group norm for fewer parameters
-        self.gn1 = nn.GroupNorm(8, 2 * self.c)
-        self.gn2 = nn.GroupNorm(8, c2)
+        # Convolutions with reduced parameter template banks
+        self.cv1 = SConv2d(self.template_bank1, stride=1, padding=kernel_size//2)
+        self.cv2 = SConv2d(self.template_bank2, stride=1, padding=0)  # no padding needed for 1x1
         
-        # 4. Efficient bottleneck with reduced parameters
+        # Group normalization for parameter efficiency
+        self.gn1 = nn.GroupNorm(min(8, 2 * self.c), 2 * self.c)
+        self.gn2 = nn.GroupNorm(min(8, c2), c2)
+        
+        # Efficient bottleneck layers with increased groups
         self.m = nn.ModuleList(
-            EBottleneck(
+            Bottleneck(
                 self.c, 
-                self.c,
-                shortcut=True,
-                g=g * 2,  # Increase groups for parameter reduction
-                e=0.5     # Reduce expansion ratio
+                self.c, 
+                shortcut=True, 
+                g=max(g * 2, 2),  # Increase groups for parameter reduction
+                k=((1, 3), (3, 1)),  # Use factorized convolutions
+                e=0.5  # Reduce expansion ratio
             ) for _ in range(n)
         )
         
-        # 5. Lightweight channel attention using depth-wise separable convolutions
+        # Lightweight channel attention using depth-wise separable convolutions
+        mid_channels = max(8, (2 * self.c + n * self.c) // 8)  # Reduce intermediate channels
         self.channel_attention = nn.Sequential(
             nn.AdaptiveAvgPool2d(1),
-            # Depth-wise
-            nn.Conv2d(2 * self.c + n * self.c, 2 * self.c + n * self.c, 1, groups=2 * self.c + n * self.c),
+            # Depth-wise conv
+            nn.Conv2d(2 * self.c + n * self.c, mid_channels, 1, 
+                     groups=mid_channels),
             nn.SiLU(),
-            # Point-wise
-            nn.Conv2d(2 * self.c + n * self.c, 2 * self.c + n * self.c, 1),
+            # Point-wise conv
+            nn.Conv2d(mid_channels, 2 * self.c + n * self.c, 1),
             nn.Sigmoid()
         )
+        
+        self._init_parameters()
+
+    def _init_parameters(self):
+        """Initialize coefficients for better convergence"""
+        for m in self.modules():
+            if isinstance(m, SConv2d):
+                nn.init.normal_(m.coefficients, mean=0.0, std=0.01)
 
     def forward(self, x):
-        # Forward pass with reduced intermediate feature storage
-        conv1_out = self.gn1(self.cv1(x))
+        # First convolution with template bank
+        conv1_out = self.cv1(x)
+        conv1_out = self.gn1(conv1_out)
         y = list(conv1_out.chunk(2, 1))
         
-        # Process through bottlenecks with in-place operations
+        # Process through bottlenecks with gradient checkpointing
         curr_feat = y[-1]
         for bottleneck in self.m:
             curr_feat = bottleneck(curr_feat)
             y.append(curr_feat)
         
-        # Efficient concatenation and attention
-        concat_features = torch.cat(y, dim=1)
-        concat_features *= self.channel_attention(concat_features)
+        # Efficient feature fusion
+        concat_features = torch.cat(y, 1)
         
-        return self.gn2(self.cv2(concat_features))
+        # Apply lightweight channel attention
+        attention = self.channel_attention(concat_features)
+        concat_features = concat_features * attention
+        
+        # Final 1x1 template convolution
+        out = self.cv2(concat_features)
+        return self.gn2(out)
+
+    def reset_templates(self):
+        """Reset template banks if needed during training"""
+        for m in self.modules():
+            if isinstance(m, TemplateBank):
+                for i in range(len(m.templates)):
+                    init.kaiming_normal_(m.templates[i])
 
 class EBottleneck(nn.Module):
     def __init__(self, c1, c2, shortcut=True, g=1, e=0.5):
