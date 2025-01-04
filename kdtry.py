@@ -34,7 +34,7 @@ Result_Final_model = model.train(
     data='/kaggle/input/waiddataset/WAID-main/WAID-main/WAID/data.yaml',
     epochs=40,
     batch=8,
-    optimizer='auto',
+    optimizer='SOAP',
     project='yolov8_softshare',
     save=True,
 )
