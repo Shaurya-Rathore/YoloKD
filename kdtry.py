@@ -1,6 +1,7 @@
 from ultralytics.models.yolo import YOLO
 from ultralytics.engine.model import Model
 import torch
+import os
 import wandb
 # Check if CUDA is available and set the device
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -38,6 +39,15 @@ Result_Final_model = model.train(
     project='yolov8_softshare',
     save=True,
 )
+# Define model and dataset names
+model_name = "yolov8_softshare"
+dataset_name = "waid"
+
+# Save the model as .pth file in Kaggle workspace
+save_path = f"/kaggle/working/models/{model_name}_{dataset_name}.pt"
+os.makedirs(os.path.dirname(save_path), exist_ok=True)
+torch.save(model.model.state_dict(), save_path)
+print(f"Model saved to {save_path}")
 
 torch.cuda.empty_cache()
 
