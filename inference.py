@@ -15,8 +15,8 @@ data_path = '/kaggle/input/waiddataset/WAID-main/WAID-main/WAID/images/test'
 # wandb.init(project="yolov8-inference")
 
 # Load the model with custom weights
-model_path_1 = "/kaggle/working/YoloKD/best.pt"
-model_path_2 = "/kaggle/working/YoloKD/yolov8_softshare_waid.pt"
+model_path_1 = "/kaggle/input/best.pt"
+model_path_2 = "/kaggle/input/yolov8_softshare_waid.pt"
 
 model = YOLO(model_path_1)
 # Run batched inference on the dataset specified in the YAML file
