@@ -338,7 +338,7 @@ class LDConv(nn.Module):
         self.stride = stride
         self.conv = nn.Sequential(nn.Conv2d(inc, outc, kernel_size=(num_param, 1), stride=(num_param, 1), bias=bias),nn.BatchNorm2d(outc),nn.SiLU())  # the conv adds the BN and SiLU to compare original Conv in YOLOv5.
         self.p_conv = nn.Conv2d(inc, 2 * num_param, kernel_size=3, padding=1, stride=stride)
-        nn.init.uniform_(self.p_conv.weight, a=-1e-3, b=1e-3)
+        nn.init.uniform_(self.p_conv.weight, a=-1e-2, b=1e-2)
         nn.init.constant_(self.p_conv.bias, 0)
         # if torch.isnan(self.p_conv.weight).any():
         #     print("theres an issue here")
@@ -475,10 +475,10 @@ class LDConv(nn.Module):
         p_0 = self._get_p_0(h, w, N, dtype)
         #print(f"p_0:{p_0.dtype}, p_n: {p_n.dtype}, offset: {offset.data.type}")
         if torch.isnan(offset).any():
-            p = p_0 + p_n
-            #offset = torch.where(torch.isnan(offset), torch.zeros_like(offset), offset)
-        else:
-            p =  p_0 + p_n + offset
+            #p = p_0 + p_n
+            offset = torch.where(torch.isnan(offset), torch.zeros_like(offset), offset)
+        
+        p =  p_0 + p_n + offset
         # print(f"p: {p}")
         return p
 
