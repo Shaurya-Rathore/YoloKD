@@ -25,7 +25,12 @@ from torch.autograd import Variable
 from ultralytics.utils.loss import v8DetectionLoss
 from torchmetrics.detection import MeanAveragePrecision
 
-def simple_nms(boxes, scores, iou_threshold=0.5):
+#counting the next 3
+total_predictions = 0
+correct_predictions = 0
+iou_threshold = 0.5
+
+def simple_nms(boxes, scores, iou_threshold=0):
     # Convert to tensor if needed
     boxes = torch.tensor(boxes)
     scores = torch.tensor(scores)
@@ -67,6 +72,45 @@ def simple_nms(boxes, scores, iou_threshold=0.5):
     
     return keep
 
+def calculate_iou(box1, box2):
+    """Calculate Intersection over Union (IoU) between two boxes"""
+    x1 = max(box1[0], box2[0])
+    y1 = max(box1[1], box2[1])
+    x2 = min(box1[2], box2[2])
+    y2 = min(box1[3], box2[3])
+    
+    intersection = max(0, x2 - x1) * max(0, y2 - y1)
+    area1 = (box1[2]-box1[0])*(box1[3]-box1[1])
+    area2 = (box2[2]-box2[0])*(box2[3]-box2[1])
+    
+    return intersection / (area1 + area2 - intersection + 1e-6)
+
+def scale_boxes(padded_boxes, pad_x, pad_y, resize_ratio_x, resize_ratio_y, crop_coords):
+    """Always returns a numpy array with proper dimensions"""
+    try:
+        # Handle null/empty inputs
+        if padded_boxes is None or not isinstance(padded_boxes, np.ndarray):
+            return np.empty((0, 4))
+        
+        # Ensure 2D array format
+        if padded_boxes.size == 0:
+            return np.empty((0, 4))
+        if padded_boxes.ndim == 1:
+            padded_boxes = np.expand_dims(padded_boxes, 0)
+            
+        # Perform coordinate transformations
+        boxes = padded_boxes.copy()
+        boxes[:, [0, 2]] = np.clip(boxes[:, [0, 2]] - pad_x, 0, crop_coords['resized_w'])
+        boxes[:, [1, 3]] = np.clip(boxes[:, [1, 3]] - pad_y, 0, crop_coords['resized_h'])
+        
+        boxes[:, [0, 2]] = boxes[:, [0, 2]] * resize_ratio_x + crop_coords['x1']
+        boxes[:, [1, 3]] = boxes[:, [1, 3]] * resize_ratio_y + crop_coords['y1']
+        
+        return boxes
+    except Exception as e:
+        print(f"Scaling error: {str(e)}")
+        return np.empty((0, 4))
+
 image_dir = r'C:\Users\Shaurya\Downloads\WAID\WAID\images\test'
 label_dir = r'C:\Users\Shaurya\Downloads\WAID\WAID\labels\test'
 
@@ -74,20 +118,20 @@ model = YOLO('yolov8n.yaml')
 
 model_state_dict = torch.load(r"C:\Users\Shaurya\Downloads\yolov8_softshare_waid (1).pt")
 model.model.load_state_dict(model_state_dict, strict=True)
-conf_threshold = 0.5
-
+conf_threshold = 0.1
 metric = MeanAveragePrecision(class_metrics=True)
-count = 0
+counta = 0
+
 for image_path in os.listdir(image_dir):
+    # Load image and initial prediction
     img = Image.open(os.path.join(image_dir, image_path)).convert("RGB")
     img_width, img_height = img.size
-
-    results = model.predict(img, conf=0.3)
-    result = results[0]
-
+    initial_results = model.predict(img, conf=0.1)
+    result = initial_results[0]
+    
     # Load ground truth
-    label_path = os.path.join(label_dir, os.path.splitext(image_path)[0] + '.txt')
     true_boxes, true_labels = [], []
+    label_path = os.path.join(label_dir, os.path.splitext(image_path)[0] + '.txt')
     if os.path.exists(label_path):
         with open(label_path, 'r') as f:
             for line in f.readlines():
@@ -99,108 +143,231 @@ for image_path in os.listdir(image_dir):
                 true_boxes.append([x1, y1, x2, y2])
                 true_labels.append(int(class_id))
 
+    # Initial predictions processing
     predictions = {
         'boxes': [],
         'scores': [],
         'labels': []
     }
-
-    replacement_map = {}
-
-    for i in range(len(result.boxes)):
-        box = result.boxes[i]
-        predictions['boxes'].append(box.xyxy[0].tolist())
+    # print(f'true boxes: {true_boxes}')
+    # print(f'true labels: {true_labels}')
+    for box in result.boxes:
+        predictions['boxes'].append(box.xyxy[0].cpu().numpy().tolist())
         predictions['scores'].append(box.conf.item())
         predictions['labels'].append(int(box.cls.item()))
-    
-    for i in range(len(predictions['scores'])):
-        if predictions['scores'][i] < conf_threshold:
-            # Get original box coordinates
-            x1, y1, x2, y2 = predictions['boxes'][i]
-
-            new_x1 = max(0, int(x1) - 50)
-            new_y1 = max(0, int(y1) - 50)
-            new_x2 = min(img_width, int(x2) + 50)
-            new_y2 = min(img_height, int(y2) + 50)
-            
-            if (new_x2 <= new_x1) or (new_y2 <= new_y1):
-                continue
-                
-            # Second pass inference
-            cropped_img = img.crop((new_x1, new_y1, new_x2, new_y2))
-            resized_img = cropped_img.resize((640, 640))
-            new_results = model.predict(resized_img, conf=conf_threshold)
-            new_result = new_results[0]
-
-            # Process new detections
-            best_conf = 0
-            best_pred = None
-            
-            for j in range(len(new_result.boxes)):
-                new_box = new_result.boxes[j]
-                new_conf = new_box.conf.item()
-                if new_conf > best_conf:
-                    best_conf = new_conf
-                    # Convert coordinates back to original space
-                    nx1, ny1, nx2, ny2 = new_box.xyxy[0].tolist()
-                    scale_x = (new_x2 - new_x1) / 640
-                    scale_y = (new_y2 - new_y1) / 640
-                    abs_x1 = new_x1 + nx1 * scale_x
-                    abs_y1 = new_y1 + ny1 * scale_y
-                    abs_x2 = new_x1 + nx2 * scale_x
-                    abs_y2 = new_y1 + ny2 * scale_y
-                    
-                    best_pred = {
-                        'box': [abs_x1, abs_y1, abs_x2, abs_y2],
-                        'label': int(new_box.cls.item()),
-                        'score': new_conf
-                    }
-
-            # Replace original prediction if better
-            if best_pred and best_pred['score'] > predictions['scores'][i]:
-                replacement_map[i] = best_pred
-
-    for idx, pred in replacement_map.items():
-        predictions['boxes'][idx] = pred['box']
-        predictions['scores'][idx] = pred['score']
-        predictions['labels'][idx] = pred['label']
-
-    # Apply NMS to final predictions
-    if predictions['boxes']:
-        boxes_tensor = torch.tensor(predictions['boxes'])
-        scores_tensor = torch.tensor(predictions['scores'])
-        labels_tensor = torch.tensor(predictions['labels'])
-        
-        keep_indices = simple_nms(boxes_tensor, scores_tensor, iou_threshold=0.5)
-        
-        final_boxes = boxes_tensor[keep_indices].tolist()
-        final_labels = labels_tensor[keep_indices].tolist()
-        final_scores = scores_tensor[keep_indices].tolist()
+    # print(f'predictions: {predictions}')
+    # Find reference box (highest confidence)
+    ref_idx = np.argmax(predictions['scores']) if predictions['scores'] else -1
+    if ref_idx != -1:
+        ref_box = predictions['boxes'][ref_idx]
+        rw = ref_box[2] - ref_box[0]
+        rh = ref_box[3] - ref_box[1]
     else:
-        final_boxes = []
-        final_labels = []
-        final_scores = []
+        rw, rh = 0, 0
 
-    preds = [{
-        'boxes': torch.tensor(final_boxes) if final_boxes else torch.zeros((0, 4)),
-        'scores': torch.tensor(final_scores) if final_scores else torch.zeros(0),
-        'labels': torch.tensor(final_labels) if final_labels else torch.zeros(0),
-    }]
+    # Refinement pass
+    replacement_candidates = []
+    for i in range(len(predictions['scores'])):
+        if predictions['scores'][i] >= conf_threshold or rw == 0 or rh == 0:
+            continue
+        
+        best_match = None
+        best_iou = -1
+        best_conf = -1
+        pre_box = predictions['boxes'][i]
+        original_label = predictions['labels'][i]
+        original_score = predictions['scores'][i]
+        x1, y1, x2, y2 = predictions['boxes'][i]
+        sw, sh = x2 - x1, y2 - y1
+        
+        # Calculate adaptive crop size
+        desired_width = (sw * 640) / rw if rw != 0 else 640
+        desired_height = (sh * 640) / rh if rh != 0 else 640
+        cx, cy = (x1 + x2)/2, (y1 + y2)/2
+        
+        # Expand ROI with boundary checks
+        new_x1 = max(0, int(cx - desired_width/2))
+        new_y1 = max(0, int(cy - desired_height/2))
+        new_x2 = min(img_width, int(cx + desired_width/2))
+        new_y2 = min(img_height, int(cy + desired_height/2))
+        
+        if (new_x2 <= new_x1) or (new_y2 <= new_y1):
+            continue
 
-    targets = [{
-        'boxes': torch.tensor(true_boxes) if true_boxes else torch.zeros((0, 4)),
-        'labels': torch.tensor(true_labels) if true_labels else torch.zeros(0),
-    }]
+        # Aspect ratio-preserving resize
+        crop = img.crop((new_x1, new_y1, new_x2, new_y2))
+        original_w, original_h = crop.size
+        ratio = min(640/original_w, 640/original_h)
+        new_size = (int(original_w*ratio), int(original_h*ratio))
+        resized = crop.resize(new_size, Image.BILINEAR)
+        
+        # Pad to 640x640
+        padded_img = Image.new("RGB", (640, 640), (114, 114, 114))
+        pad_x, pad_y = (640 - new_size[0])//2, (640 - new_size[1])//2
+        padded_img.paste(resized, (pad_x, pad_y))
 
-    metric.update(preds, targets)
-    count += 1
+        # Second pass inference
+        with torch.no_grad():
+            new_results = model.predict(padded_img, conf=0.1)
+        
+        if len(new_results[0].boxes) == 0:
+            continue
 
+        # Process detections with dimension checks
+        boxes = new_results[0].boxes.xyxy.cpu().numpy()
+        # Ensure 2D array even for single detection
+        if boxes.ndim == 1:
+            boxes = np.expand_dims(boxes, axis=0)
+            
+        confs = new_results[0].boxes.conf.cpu().numpy()
+        labels = new_results[0].boxes.cls.cpu().numpy().astype(int)
+        
+        # Null check for scaling parameters
+        if new_size[0] == 0 or new_size[1] == 0:
+            continue
+            
+        # Calculate scaling parameters
+        crop_w, crop_h = new_x2 - new_x1, new_y2 - new_y1
+        scale_x = crop_w / new_size[0]
+        scale_y = crop_h / new_size[1]
+        
+        # Scale boxes using fixed function
+        scaled_boxes = scale_boxes(
+            boxes.copy(), pad_x, pad_y, scale_x, scale_y,
+            {'x1': new_x1, 'y1': new_y1, 
+             'resized_w': new_size[0], 'resized_h': new_size[1]}
+        )
+        
+        # Check if any valid boxes exist
+        if scaled_boxes.size == 0:
+            continue
+            
+        for box_idx, (scaled_box, label, conf) in enumerate(zip(scaled_boxes, labels, confs)):
+            # Skip if class doesn't match original detection
+            if label != original_label:
+                continue
+            
+            current_iou = calculate_iou(pre_box, scaled_box)
+            
+            # Track best match using IoU and confidence
+            if current_iou > best_iou or (current_iou == best_iou and conf > best_conf):
+                best_iou = current_iou
+                best_conf = conf
+                best_match = scaled_box
+            
+        # Only add if confidence improves
+        if best_match is not None:
+            min_iou_threshold = 0.25  # Adjust based on your use case
+            if best_iou >= min_iou_threshold and best_conf > original_score:
+                replacement_candidates.append({
+                    'idx': i,
+                    'box': best_match.tolist(),
+                    # 'box': predictions['boxes'][i],
+                    'score': best_conf,
+                    'label': original_label
+                })
+
+    # Apply replacements after full iteration
+    final_predictions = {
+    'boxes': predictions['boxes'].copy(),
+    'scores': predictions['scores'].copy(),
+    'labels': predictions['labels'].copy()
+    }
+
+    for candidate in replacement_candidates:
+        i = candidate['idx']
+        if final_predictions['scores'][i] < candidate['score']:
+            final_predictions['boxes'][i] = candidate['box']
+            final_predictions['scores'][i] = candidate['score']
+            final_predictions['labels'][i] = candidate['label']
+    
+    #next two lines for counting
+    img_correct = 0
+    used_truth_indices = []
+     
+
+    # Confidence-aware NMS
+    # if predictions['boxes']:
+    #     boxes_tensor = torch.tensor(predictions['boxes'])
+    #     scores_tensor = torch.tensor(predictions['scores'])
+    #     labels_tensor = torch.tensor(predictions['labels'])
+        
+    #     keep_indices = simple_nms(boxes_tensor, scores_tensor, 0.7)
+        
+    #     final_boxes = boxes_tensor[keep_indices].tolist()
+    #     final_scores = scores_tensor[keep_indices].tolist()
+    #     final_labels = labels_tensor[keep_indices].tolist()
+    # else:
+    #     final_boxes, final_scores, final_labels = [], [], []
+
+    boxes_tensor = torch.tensor(final_predictions['boxes'])
+    scores_tensor = torch.tensor(final_predictions['scores'])
+    labels_tensor = torch.tensor(final_predictions['labels'])
+
+    keep_indices = simple_nms(boxes_tensor, scores_tensor, iou_threshold=0.5)
+
+    filtered_predictions = {
+    'boxes': boxes_tensor[keep_indices].tolist(),
+    'scores': scores_tensor[keep_indices].tolist(),
+    'labels': labels_tensor[keep_indices].tolist()
+    }
+
+    #code for counting
+    pred_boxes = np.array(filtered_predictions['boxes'])
+    pred_scores = np.array(filtered_predictions['scores'])
+    pred_labels = np.array(filtered_predictions['labels'])
+    true_boxes = np.array(true_boxes)
+    true_labels = np.array(true_labels)
+
+    #code for counting
+    for i, (pred_box, pred_label) in enumerate(zip(pred_boxes, pred_labels)):
+        total_predictions += 1
+        
+        # Find matching ground truth boxes (same class)
+        matching_truths = np.where(true_labels == pred_label)[0]
+        best_iou = 0
+        best_truth_idx = -1
+        
+        for truth_idx in matching_truths:
+            if truth_idx in used_truth_indices:
+                continue  # Already matched
+            
+            iou = calculate_iou(pred_box, true_boxes[truth_idx])
+            if iou > best_iou:
+                best_iou = iou
+                best_truth_idx = truth_idx
+        
+        if best_iou >= iou_threshold and best_truth_idx != -1:
+            correct_predictions += 1
+            img_correct += 1
+            used_truth_indices.append(best_truth_idx)
+
+    #ends counting
     # Update metrics
-    metric.update(preds, targets)
-    count += 1
+    # print(f'Final boxes: {filtered_predictions["boxes"]}')
+    # print(f'Final scores: {filtered_predictions["scores"]}')
 
-# Calculate and print final metrics
+    # Convert filtered predictions to metric-compatible format
+    preds = [{
+        'boxes': torch.tensor(filtered_predictions['boxes']) if filtered_predictions['boxes'] else torch.zeros((0, 4)),
+        'scores': torch.tensor(filtered_predictions['scores']) if filtered_predictions['scores'] else torch.zeros(0),
+        'labels': torch.tensor(filtered_predictions['labels']) if filtered_predictions['labels'] else torch.zeros(0),
+    }]
+
+    # Ground truth
+    targets = [{
+        'boxes': torch.tensor(true_boxes) if true_boxes.size > 0 else torch.zeros((0, 4)),
+        'labels': torch.tensor(true_labels) if true_labels.size > 0 else torch.zeros(0),
+    }]
+    metric.update(preds, targets)
+
+# Final metrics
 final_metrics = metric.compute()
 print(f"mAP@0.5: {final_metrics['map_50']:.4f}")
 print(f"Precision: {final_metrics['map_per_class'].mean():.4f}")
 print(f"Recall: {final_metrics['mar_100'].mean():.4f}")
+
+print("\nFinal Statistics:")
+print(f"Total Correct Predictions: {correct_predictions}")
+print(f"Total Predictions Made: {total_predictions}")
+print(f"Precision: {correct_predictions/(total_predictions + 1e-7):.4f}")

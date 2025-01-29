@@ -5,6 +5,7 @@ import glob
 import numpy as np
 import torch
 import ultralytics.nn.modules.darts_utils
+from PIL import Image
 import logging
 import argparse
 import torch.nn as nn
@@ -25,7 +26,7 @@ from ultralytics.utils.loss import v8DetectionLoss
 #from ultralytics.nn.modules.model import DARTSModel as Network
 
 wandb.login(key="833b800ff23eb3d26e6c85a8b9e1fc8bbafc9775") 
-wandb.init(project="yolov8")
+wandb.init(project="yolov8", mode='disabled')
 
 #wandb.init(mode='disabled')
 
@@ -139,7 +140,78 @@ train_queue = torch.utils.data.DataLoader(train_data, batch_size=args.batch_size
 print(len(train_queue))
 # for name, layer in teacher.named_modules():
 #     print(name, layer)
-# teacher = YOLO('yolov8n.yaml')
+image_path = r'C:\Users\Shaurya\Downloads\WhatsApp Image 2025-01-16 at 5.59.35 PM.jpeg'
+img = Image.open(image_path).convert("RGB")
+
+# Step 2: Load the YOLOv8 model with the custom YAML file
+model = YOLO('yolov8n.yaml')
+
+# Step 3: Load the custom model weights
+model_state_dict = torch.load(r"C:\Users\Shaurya\Downloads\yolov8_softshare_waid (1).pt")
+model.model.load_state_dict(model_state_dict, strict=True)
+
+# Step 4: Perform prediction on the input image
+results = model.predict(image_path)
+
+# Step 5: Access detection results for the first image
+result = results[0]
+
+# Step 6: Define the confidence threshold
+conf_threshold = 0.71
+
+# Step 7: Iterate over each detection
+for i in range(len(result.boxes)):
+    conf = result.boxes.conf[i].item()
+    if conf < conf_threshold:
+        # Get bounding box coordinates
+        x1, y1, x2, y2 = result.boxes.xyxy[i].tolist()
+        
+        # Calculate original object size
+        obj_width = x2 - x1
+        obj_height = y2 - y1
+        
+        # Desired size in the resized image (3 times original size)
+        desired_width = 3 * obj_width
+        desired_height = 3 * obj_height
+        
+        # Calculate scaling factors
+        original_width, original_height = img.size
+        scale_width = 640 / original_width
+        scale_height = 640 / original_height
+        
+        # Calculate padding in the original image
+        padding_width = (desired_width / scale_width - obj_width) / 2
+        padding_height = (desired_height / scale_height - obj_height) / 2
+        
+        # Adjust coordinates with padding
+        new_x1 = max(0, x1 - padding_width)
+        new_y1 = max(0, y1 - padding_height)
+        new_x2 = min(original_width, x2 + padding_width)
+        new_y2 = min(original_height, y2 + padding_height)
+        
+        # Ensure coordinates are integers
+        new_x1 = int(new_x1)
+        new_y1 = int(new_y1)
+        new_x2 = int(new_x2)
+        new_y2 = int(new_y2)
+        
+        # Crop the image
+        cropped_img = img.crop((new_x1, new_y1, new_x2, new_y2))
+        
+        # Resize the cropped image to 640x640
+        resized_img = cropped_img.resize((640, 640))
+        
+        # Perform prediction on the resized image if needed
+        # result_resized = model.predict(resized_img)
+        
+        # Display the resized image
+        resized_img.show()
+        
+        # Optionally save the image with a unique name
+        # resized_img.save(f'cropped_person_{i}.jpg')
+
+# Optional: Print the number of detections below the threshold
+print(f"Number of detections with confidence below {conf_threshold}: {len(result.boxes[confidences < conf_threshold])}")
 # layer_teacher = getattr(teacher.model.model, '22')
 # layer_student = getattr(teacher.model.model, '22')
 # layer_teacher.register_forward_hook(forward_hook_teacher)
