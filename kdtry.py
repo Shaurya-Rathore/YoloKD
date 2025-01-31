@@ -8,7 +8,7 @@ import wandb
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 # Initialize a new W&B run
-wandb.init(project="yolo_buck_patched_benchmarks")
+wandb.init(project="yolov8_softshare")
 
 # Load the custom model configuration
 model = YOLO('yolov5n.yaml')
@@ -37,7 +37,7 @@ Result_Final_model = model.train(
     epochs=70,
     batch=8,
     optimizer='auto',
-    project='yolo_buck_patched_benchmarks',
+    project='yolov8_softshare',
     save=True,
     imgsz=1280,
     warmup_epochs=5,
