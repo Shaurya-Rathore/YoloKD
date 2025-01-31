@@ -3,6 +3,7 @@ from ultralytics import YOLO
 from ultralytics.engine.model import Model
 import torch
 import wandb
+
 # Check if CUDA is available and set the device
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
