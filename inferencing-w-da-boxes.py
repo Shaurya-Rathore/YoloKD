@@ -28,7 +28,7 @@ from torchmetrics.detection import MeanAveragePrecision
 #counting the next 3
 total_predictions = 0
 correct_predictions = 0
-iou_threshold = 0.1
+iou_threshold = 0.5
 
 def simple_nms(boxes, scores, iou_threshold=0):
     # Convert to tensor if needed
@@ -118,7 +118,7 @@ model = YOLO('yolov8n.yaml')
 
 model_state_dict = torch.load(r"C:\Users\Shaurya\Downloads\yolov8_softshare_waid (1).pt")
 model.model.load_state_dict(model_state_dict, strict=True)
-conf_threshold = 0.5
+conf_threshold = 0.7
 metric = MeanAveragePrecision(class_metrics=True)
 counta = 0
 
