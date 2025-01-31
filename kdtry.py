@@ -8,10 +8,10 @@ import wandb
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 # Initialize a new W&B run
-wandb.init(project="yolov8_softshare")
+wandb.init(project="yolo_buck_patched_benchmarks")
 
 # Load the custom model configuration
-model = YOLO('yolov5n.yaml')
+model = YOLO('yolov6n.yaml')
 model.model.to(device)
 
 # Define a callback to log losses at the end of each training batch
@@ -37,14 +37,14 @@ Result_Final_model = model.train(
     epochs=70,
     batch=8,
     optimizer='auto',
-    project='yolov8_softshare',
+    project='yolo_buck_patched_benchmarks',
     save=True,
     imgsz=1280,
     warmup_epochs=5,
 )
 
 # Define model and dataset names
-model_name = "yolov5n_vanilla"
+model_name = "yolov6n_vanilla"
 dataset_name = "bucktales-patched"
 
 # Save the model as .pth file in Kaggle workspace
