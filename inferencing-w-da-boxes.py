@@ -6,6 +6,8 @@ import numpy as np
 import torch
 import ultralytics.nn.modules.darts_utils
 from PIL import Image
+from PIL import ImageDraw, ImageFont
+import matplotlib.pyplot as plt
 import logging
 import argparse
 import torch.nn as nn
@@ -29,6 +31,190 @@ from torchmetrics.detection import MeanAveragePrecision
 total_predictions = 0
 correct_predictions = 0
 iou_threshold = 0.5
+
+import numpy as np
+import torch
+
+class Metric:
+    def __init__(self, nc, conf=0.25, iou_thres=0.45):
+        self.nc = nc  # Number of classes
+        self.conf = conf  # Confidence threshold
+        self.iou_thres = iou_thres  # IoU threshold
+        self.p = []  # Precision per class
+        self.r = []  # Recall per class
+        self.f1 = []  # F1 score per class
+        self.ap50 = []  # AP@IoU=0.5
+        self.ap = []  # AP@IoU=0.5-0.95
+        self.map50 = 0.0  # Initialize mAP@0.5
+        self.map = 0.0    # Initialize mAP@0.5-0.95
+        self.matrix = np.zeros((nc + 1, nc + 1))  # Confusion matrix
+        self.all_detections = []  # Stores all detections: {'bbox', 'class', 'confidence'}
+        self.all_gts = []         # Stores all GTs: {'bbox', 'class'}
+
+    def process_batch(self, detections, gt_bboxes, gt_cls):
+        # Store all detections and GTs for AP calculation (no conversion needed)
+        if detections is not None:
+            for det in detections:
+                bbox = det[:4].cpu().numpy()  # Already in xyxy
+                conf = det[4].item()
+                cls = int(det[5].item())
+                self.all_detections.append({'bbox': bbox, 'class': cls, 'confidence': conf})
+        
+        if gt_cls is not None:
+            for i in range(len(gt_cls)):
+                bbox = gt_bboxes[i].cpu().numpy()  # Already in xyxy
+                cls = int(gt_cls[i].item())
+                self.all_gts.append({'bbox': bbox, 'class': cls})
+
+        # Compute IoU and matches for confusion matrix
+        if detections is not None and gt_bboxes is not None and len(gt_bboxes) > 0:
+            iou_matrix = self._calculate_iou(detections[:, :4], gt_bboxes)
+            matches = self._match_detections(iou_matrix, self.iou_thres)
+            
+            for det_idx, gt_idx in matches:
+                pred_cls = int(detections[det_idx][5].item())
+                true_cls = int(gt_cls[gt_idx].item())
+                self.matrix[pred_cls, true_cls] += 1
+
+    def _calculate_iou(self, det_xyxy, gt_xyxy):
+        if det_xyxy.size(0) == 0 or gt_xyxy.size(0) == 0:
+            return torch.empty((0, 0))
+        
+        # Compute intersection areas
+        inter_x1 = torch.max(det_xyxy[:, None, 0], gt_xyxy[:, 0])
+        inter_y1 = torch.max(det_xyxy[:, None, 1], gt_xyxy[:, 1])
+        inter_x2 = torch.min(det_xyxy[:, None, 2], gt_xyxy[:, 2])
+        inter_y2 = torch.min(det_xyxy[:, None, 3], gt_xyxy[:, 3])
+        inter_area = (inter_x2 - inter_x1).clamp(0) * (inter_y2 - inter_y1).clamp(0)
+        
+        # Compute union areas
+        det_area = (det_xyxy[:, 2] - det_xyxy[:, 0]) * (det_xyxy[:, 3] - det_xyxy[:, 1])
+        gt_area = (gt_xyxy[:, 2] - gt_xyxy[:, 0]) * (gt_xyxy[:, 3] - gt_xyxy[:, 1])
+        union_area = det_area[:, None] + gt_area - inter_area
+        
+        # Avoid division by zero
+        iou_matrix = inter_area / (union_area + 1e-7)
+        return iou_matrix
+    
+    def _match_detections(self, iou_matrix, iou_thres):
+        matches = []
+        if iou_matrix.size(0) == 0:
+            return matches
+        # Greedy matching based on IoU
+        for det_idx in range(iou_matrix.size(0)):
+            max_iou, gt_idx = torch.max(iou_matrix[det_idx], dim=0)
+            if max_iou >= iou_thres:
+                matches.append((det_idx, gt_idx.item()))
+        return matches
+    
+    def compute_metrics(self):
+        # Initialize metrics
+        self.p = [0.0] * self.nc
+        self.r = [0.0] * self.nc
+        self.f1 = [0.0] * self.nc
+        self.ap50 = [0.0] * self.nc
+        self.ap = [0.0] * self.nc
+        
+        if self.matrix.sum() > 0:
+            for c in range(self.nc):
+                tp = self.matrix[c, c]
+                fp = self.matrix[c, :].sum() - tp
+                fn = self.matrix[:, c].sum() - tp
+                
+                precision = tp / (tp + fp + 1e-7)
+                recall = tp / (tp + fn + 1e-7)
+                self.p[c] = precision
+                self.r[c] = recall
+                self.f1[c] = 2 * (precision * recall) / (precision + recall + 1e-7)
+
+            # Compute AP@0.5 and AP@0.5:0.95
+            self.ap50 = [self._compute_ap(c, iou_thres=0.5) if (self.matrix[c, :].sum() > 0) else 0.0 
+                        for c in range(self.nc)]
+            self.ap = [self._compute_ap_range(c) if (self.matrix[c, :].sum() > 0) else 0.0 
+                      for c in range(self.nc)]
+        
+        # Calculate mAPs
+        self.map50 = np.nanmean(self.ap50) if self.ap50 else 0.0
+        self.map = np.nanmean(self.ap) if self.ap else 0.0
+
+    def _compute_ap(self, class_id, iou_thres):
+        # Filter detections and GTs for the current class
+        class_detections = [d for d in self.all_detections if d['class'] == class_id]
+        class_gts = [g for g in self.all_gts if g['class'] == class_id]
+        n_gt = len(class_gts)
+        
+        if n_gt == 0 or len(class_detections) == 0:
+            return 0.0
+        
+        # Sort detections by confidence
+        class_detections.sort(key=lambda x: x['confidence'], reverse=True)
+        
+        # Track matched GTs
+        gt_matched = np.zeros(n_gt, dtype=bool)
+        tp = np.zeros(len(class_detections), dtype=int)
+        fp = np.zeros(len(class_detections), dtype=int)
+        
+        for det_idx, det in enumerate(class_detections):
+            max_iou = 0.0
+            best_gt = -1
+            
+            # Find best matching GT
+            for gt_idx, gt in enumerate(class_gts):
+                if not gt_matched[gt_idx]:
+                    iou = self._calculate_iou_single(det['bbox'], gt['bbox'])
+                    if iou > max_iou:
+                        max_iou = iou
+                        best_gt = gt_idx
+            
+            if max_iou >= iou_thres:
+                gt_matched[best_gt] = True
+                tp[det_idx] = 1
+            else:
+                fp[det_idx] = 1
+        
+        # Cumulative TP/FP
+        tp_cum = np.cumsum(tp)
+        fp_cum = np.cumsum(fp)
+        
+        # Compute precision-recall curve
+        recall = tp_cum / (n_gt + 1e-7)
+        precision = tp_cum / (tp_cum + fp_cum + 1e-7)
+        
+        # Interpolate precision at 101 recall points
+        r = np.linspace(0, 1, 101)
+        p = np.interp(r, recall, precision, right=0)
+        p = np.maximum.accumulate(p)  # Ensure precision is non-decreasing
+        
+        # Average precision (area under the curve)
+        ap = np.mean(p)
+        return ap
+
+    def _compute_ap_range(self, class_id, iou_start=0.5, iou_end=0.95, step=0.05):
+        # Compute AP across a range of IoU thresholds
+        aps = []
+        for thresh in np.arange(iou_start, iou_end + step, step):
+            ap = self._compute_ap(class_id, thresh)
+            aps.append(ap)
+        return np.mean(aps) if aps else 0.0
+
+    def _calculate_iou_single(self, bbox1, bbox2):
+        # Compute IoU between two bboxes in xyxy format
+        x1 = max(bbox1[0], bbox2[0])
+        y1 = max(bbox1[1], bbox2[1])
+        x2 = min(bbox1[2], bbox2[2])
+        y2 = min(bbox1[3], bbox2[3])
+        
+        print('calc is short for calculator')
+        inter_area = max(x2 - x1, 0) * max(y2 - y1, 0)
+        area1 = (bbox1[2] - bbox1[0]) * (bbox1[3] - bbox1[1])
+        area2 = (bbox2[2] - bbox2[0]) * (bbox2[3] - bbox2[1])
+        union_area = area1 + area2 - inter_area
+        
+        return inter_area / (union_area + 1e-7)
+        
+
+os.makedirs('visualizations/initial', exist_ok=True)
+os.makedirs('visualizations/final', exist_ok=True)
 
 def simple_nms(boxes, scores, iou_threshold=0):
     # Convert to tensor if needed
@@ -118,16 +304,23 @@ model = YOLO('yolov8n.yaml')
 
 model_state_dict = torch.load(r"C:\Users\Shaurya\Downloads\yolov8_softshare_waid (1).pt")
 model.model.load_state_dict(model_state_dict, strict=True)
-conf_threshold = 0.7
-metric = MeanAveragePrecision(class_metrics=True)
+conf_threshold = 0.1
+# metric = MeanAveragePrecision(class_metrics=True)
+metric = Metric(nc=len(model.names), conf=0.25, iou_thres=0.45)
 counta = 0
 
 for image_path in os.listdir(image_dir):
+    # counta += 1
+    # if counta > 10 :
+    #     break
     # Load image and initial prediction
     img = Image.open(os.path.join(image_dir, image_path)).convert("RGB")
     img_width, img_height = img.size
-    initial_results = model.predict(img, conf=0.1)
+    initial_results = model.predict(img, conf=0.25)
     result = initial_results[0]
+
+    initial_img = img.copy()  # Create a copy of the original image
+    draw_initial = ImageDraw.Draw(initial_img)
     
     # Load ground truth
     true_boxes, true_labels = [], []
@@ -149,8 +342,9 @@ for image_path in os.listdir(image_dir):
         'scores': [],
         'labels': []
     }
-    # print(f'true boxes: {true_boxes}')
-    # print(f'true labels: {true_labels}')
+    # print(f'true boxes: {true_boxes[0]}')
+    # print(f'true labels: {true_labels[0]}')
+    # print(result.boxes[0])
     for box in result.boxes:
         predictions['boxes'].append(box.xyxy[0].cpu().numpy().tolist())
         predictions['scores'].append(box.conf.item())
@@ -208,7 +402,7 @@ for image_path in os.listdir(image_dir):
 
         # Second pass inference
         with torch.no_grad():
-            new_results = model.predict(padded_img, conf=0.1)
+            new_results = model.predict(padded_img)
         
         if len(new_results[0].boxes) == 0:
             continue
@@ -304,13 +498,56 @@ for image_path in os.listdir(image_dir):
     scores_tensor = torch.tensor(final_predictions['scores'])
     labels_tensor = torch.tensor(final_predictions['labels'])
 
-    keep_indices = simple_nms(boxes_tensor, scores_tensor, iou_threshold=0.5)
+    # keep_indices = simple_nms(boxes_tensor, scores_tensor, iou_threshold=0.5)
+    keep_indices = list(range(len(predictions['boxes'])))
 
     filtered_predictions = {
     'boxes': boxes_tensor[keep_indices].tolist(),
     'scores': scores_tensor[keep_indices].tolist(),
     'labels': labels_tensor[keep_indices].tolist()
     }
+
+    if len(filtered_predictions['boxes']) > 0:
+    # Convert predictions to tensor format [x1,y1,x2,y2,conf,cls]
+        detections = torch.cat([
+            torch.tensor(filtered_predictions['boxes']),
+            torch.tensor(filtered_predictions['scores']).unsqueeze(1),
+            torch.tensor(filtered_predictions['labels']).unsqueeze(1).float()
+        ], dim=1)
+    else:
+        detections = torch.empty((0, 6))
+
+# Convert ground truths to tensors
+    gt_boxes = torch.tensor(true_boxes) if true_boxes else torch.empty((0, 4))
+    gt_cls = torch.tensor(true_labels) if true_labels else torch.empty((0,))
+
+    for box, score, label in zip(predictions['boxes'], predictions['scores'], predictions['labels']):
+        x1, y1, x2, y2 = box
+        # Draw rectangle
+        draw_initial.rectangle([x1, y1, x2, y2], outline="red", width=2)
+        # Add label and confidence
+        label_text = f"{model.names[label]}: {score:.2f}"
+        draw_initial.text((x1, y1-10), label_text, fill="red")
+
+    final_img = img.copy()  # Create another copy of the original image
+    draw_final = ImageDraw.Draw(final_img)
+
+    # Visualization of final predictions
+    for box, score, label in zip(filtered_predictions['boxes'], filtered_predictions['scores'], filtered_predictions['labels']):
+        x1, y1, x2, y2 = box
+        # Draw rectangle
+        draw_final.rectangle([x1, y1, x2, y2], outline="green", width=2)
+        # Add label and confidence
+        label_text = f"{model.names[label]}: {score:.2f}"
+        draw_final.text((x1, y1-10), label_text, fill="green")
+
+    base_name = os.path.splitext(image_path)[0]
+    # initial_img.show()         # Shows the initial image with red boxes
+    # final_img.show() 
+    # img.save(f'visualizations/initial/{base_name}_initial.jpg')
+    # final_img.save(f'visualizations/final/{base_name}_final.jpg')
+    # draw_initial.image.save(f'visualizations/initial/{base_name}_initial.jpg')
+    # draw_final.image.save(f'visualizations/final/{base_name}_final.jpg')
 
     #code for counting
     pred_boxes = np.array(filtered_predictions['boxes'])
@@ -359,13 +596,30 @@ for image_path in os.listdir(image_dir):
         'boxes': torch.tensor(true_boxes) if true_boxes.size > 0 else torch.zeros((0, 4)),
         'labels': torch.tensor(true_labels) if true_labels.size > 0 else torch.zeros(0),
     }]
-    metric.update(preds, targets)
+    metric.process_batch(detections, gt_boxes, gt_cls)
 
 # Final metrics
-final_metrics = metric.compute()
-print(f"mAP@0.5: {final_metrics['map_50']:.4f}")
-print(f"Precision: {final_metrics['map_per_class'].mean():.4f}")
-print(f"Recall: {final_metrics['mar_100'].mean():.4f}")
+# final_metrics = metric.compute()
+# print(f"mAP@0.5: {final_metrics['map_50']:.4f}")
+# for class_id, precision in enumerate(final_metrics['map_per_class']):
+#     print(f"Class: {model.names[class_id]}, Precision (mAP): {precision:.4f}")
+# print(f"Precision: {final_metrics['map_per_class'].mean():.4f}")
+# print(f"Recall: {final_metrics['mar_100'].mean():.4f}")
+print('pre metrics')
+metric.compute_metrics()
+print("\nYOLO-style Metrics:")
+print(f"mAP@0.5: {metric.map50:.4f}")
+print(f"mAP@0.5-0.95: {metric.map:.4f}")
+print(f"Precision: {np.mean(metric.p):.4f}")
+print(f"Recall: {np.mean(metric.r):.4f}")
+print(f"F1-score: {np.mean(metric.f1):.4f}")
+
+# Optional: Per-class metrics
+for c in range(5):
+    print(f"Class {c} ({model.names[c]}):")
+    print(f"  Precision: {metric.p[c]:.4f}")
+    print(f"  Recall: {metric.r[c]:.4f}")
+    print(f"  AP@0.5: {metric.ap50[c]:.4f}")
 
 print("\nFinal Statistics:")
 print(f"Total Correct Predictions: {correct_predictions}")
