@@ -11,7 +11,7 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 wandb.init(project="yolo_buck_patched_benchmarks")
 
 # Load the custom model configuration
-model = YOLO('yolov8n.yaml')
+model = YOLO('rtdetr-resnet50.yaml')
 model.model.to(device)
 
 # Define a callback to log losses at the end of each training batch
@@ -44,7 +44,7 @@ Result_Final_model = model.train(
 )
 
 # Define model and dataset names
-model_name = "yolov8n_vanilla"
+model_name = "rtdetr-resnet50"
 dataset_name = "bucktales-patched"
 
 # Save the model as .pth file in Kaggle workspace
