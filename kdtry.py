@@ -1,5 +1,6 @@
 from ultralytics.models.yolo import YOLO
 from ultralytics import YOLO
+from ultralytics import RTDETR
 from ultralytics.engine.model import Model
 import torch
 import wandb
@@ -11,7 +12,7 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 wandb.init(project="yolo_buck_patched_benchmarks")
 
 # Load the custom model configuration
-model = YOLO('rtdetr-resnet50.yaml')
+model = RTDETR('rtdetr-resnet50.yaml')
 model.model.to(device)
 
 # Define a callback to log losses at the end of each training batch
