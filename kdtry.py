@@ -34,7 +34,7 @@ model.add_callback('on_train_batch_end', log_losses)
 
 # Train the model with the specified configuration and sync to W&B
 Result_Final_model = model.train(
-    data="/kaggle/input/bucktales-patched/bucktales_patched/dtc2023.yaml",
+    data="/content/drive/MyDrive/bucktales/bucktales_patched/dtc2023.yaml",
     epochs=70,
     batch=8,
     optimizer='auto',
